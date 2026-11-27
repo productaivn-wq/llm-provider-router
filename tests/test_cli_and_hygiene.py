@@ -116,3 +116,57 @@ def test_documented_cli_commands_parse_cleanly() -> None:
     for argv in samples:
         parsed = parser.parse_args(argv)
         assert parsed.command == argv[0]
+
+
+def test_audience_docs_installers_and_public_hygiene() -> None:
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    nontech_doc = root / "docs" / "AI_SETUP_PROMPT_NONTECH.md"
+    tech_doc = root / "docs" / "AI_SETUP_PROMPT_TECH.md"
+    index_doc = root / "docs" / "AI_SETUP_PROMPT.md"
+    ps_installer = root / "scripts" / "install.ps1"
+    sh_installer = root / "scripts" / "install.sh"
+
+    for p in (nontech_doc, tech_doc, index_doc, ps_installer, sh_installer):
+        assert p.is_file(), f"Missing deliverable: {p}"
+
+    nontech_text = nontech_doc.read_text(encoding="utf-8")
+    for marker in (
+        "archive/refs/heads/main.zip",
+        "Activate.ps1",
+        "--api-key-stdin",
+        "Mo_Cong_AI.bat",
+        "Mo_Cong_AI.command",
+        "Phase 7",
+        "PYTHONUTF8=1",
+    ):
+        assert marker in nontech_text, f"Missing non-tech safeguard marker {marker!r}"
+
+    tech_text = tech_doc.read_text(encoding="utf-8")
+    for marker in ("--api-key-stdin", "LLM-Provider-Router/1.0", "127.0.0.1:18766/v1", "router/auto"):
+        assert marker in tech_text, f"Missing tech marker {marker!r}"
+
+    # Verify public-repo zero-leak hygiene across README, docs, scripts, src, tests
+    forbidden_internal = [
+        "".join(["mh", "solution", ".vn"]),
+        "".join(["icp", "v.io", ".vn"]),
+        "".join(["product", "ai.vn"]),
+        "".join(["hrm.", "mh"]),
+        "".join(["công ", "danh"]),
+        "".join(["văn ", "thông"]),
+    ]
+    sk_pat = re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b")
+    scan_files = (
+        [root / "README.md"]
+        + sorted((root / "docs").glob("*.md"))
+        + sorted((root / "scripts").glob("*"))
+        + sorted((root / "src" / "llm_provider_router").glob("*.py"))
+        + sorted((root / "tests").glob("*.py"))
+    )
+    for fpath in scan_files:
+        content = fpath.read_text(encoding="utf-8", errors="ignore")
+        low = content.lower()
+        for token in forbidden_internal:
+            assert token not in low, f"Public hygiene leak ({token!r}) in {fpath}"
+        assert not sk_pat.search(content), f"Raw sk- key literal found in {fpath}"

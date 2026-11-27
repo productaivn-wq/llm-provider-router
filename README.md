@@ -75,9 +75,14 @@ with LLMProviderRouter() as router:
     print(f"Served by {res.provider} / {res.model} in {res.latency_ms:.0f}ms")
 ```
 
-## Copy-Paste Setup Prompt for Your AI Assistant
+## 1-Shot Setup Prompts & Installers
 
-See [docs/AI_SETUP_PROMPT.md](docs/AI_SETUP_PROMPT.md) for a self-contained prompt you can paste into any AI coding assistant to install and verify `llm-provider-router` automatically.
+Choose the guide tailored to your audience:
+
+- **Non-Tech Users (1-Shot Autonomous Runbook)**: [docs/AI_SETUP_PROMPT_NONTECH.md](docs/AI_SETUP_PROMPT_NONTECH.md) — handles Python auto-install, zero-Git ZIP download fallback, ExecutionPolicy-safe `.venv` setup, silent key injection, self-healing verification, and a 1-click `Mo_Cong_AI` launcher.
+- **Tech Users (CLI + IDE Gateway + SDK)**: [docs/AI_SETUP_PROMPT_TECH.md](docs/AI_SETUP_PROMPT_TECH.md)
+- **Prompt Index**: [docs/AI_SETUP_PROMPT.md](docs/AI_SETUP_PROMPT.md)
+- **Native 1-Command Scripts**: [scripts/install.ps1](scripts/install.ps1) (Windows) and [scripts/install.sh](scripts/install.sh) (macOS/Linux)
 
 ## Development & Tests
 
