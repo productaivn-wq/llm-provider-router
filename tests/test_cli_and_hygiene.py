@@ -73,7 +73,7 @@ def test_cli_status_and_reset_cooldowns(tmp_path: Path, capsys, monkeypatch) -> 
 
 
 def test_source_tree_has_clean_ast_and_no_print_leaks() -> None:
-    assert __version__ == "1.1.0"
+    assert __version__ == "1.2.0"
     src_dir = Path(__file__).resolve().parents[1] / "src" / "llm_provider_router"
     for py_file in sorted(src_dir.glob("*.py")):
         tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
@@ -112,8 +112,10 @@ def test_documented_cli_commands_parse_cleanly() -> None:
         ["serve"],
         ["status", "--json"],
         ["reset-cooldowns"],
-        ["connect", "--start-gateway", "--json"],
-        ["connect", "--no-start-gateway", "--clients", "codex,continue", "--dry-run", "--json"],
+        ["connect", "--json"],
+        ["connect", "--clients", "agy,claude,codex,cursor", "--dry-run", "--json"],
+        ["delegate", "--role", "coding", "Write unit tests", "--json"],
+        ["batch", "--tasks-file", "tasks.json", "--max-workers", "4", "--json"],
     ]
     for argv in samples:
         parsed = parser.parse_args(argv)
@@ -168,6 +170,8 @@ def test_audience_docs_installers_and_public_hygiene() -> None:
     for p in (nontech_doc, tech_doc, visual_doc, index_doc, ps_installer, sh_installer):
         assert p.is_file(), f"Missing deliverable: {p}"
 
+    assert not (root / "src" / "llm_provider_router" / "webui.py").exists(), "webui.py must be removed"
+
     # README.md and pyproject.toml must stay pure ASCII so Windows pip install never fails under cp1252/cp1258
     for pkg_file in (root / "README.md", root / "pyproject.toml"):
         raw_txt = pkg_file.read_text(encoding="utf-8")
@@ -178,9 +182,8 @@ def test_audience_docs_installers_and_public_hygiene() -> None:
         "archive/refs/heads/main.zip",
         "Activate.ps1",
         "--api-key-stdin",
-        "connect --start-gateway",
-        "Mo_Chat_AI",
-        "127.0.0.1:18766",
+        "-m llm_provider_router connect",
+        "-m llm_provider_router delegate",
         "Phase 7",
         "PYTHONUTF8=1",
     ):
@@ -189,16 +192,21 @@ def test_audience_docs_installers_and_public_hygiene() -> None:
     tech_text = tech_doc.read_text(encoding="utf-8")
     for marker in (
         "--api-key-stdin",
-        "connect --start-gateway",
+        "-m llm_provider_router connect",
+        "-m llm_provider_router delegate",
         "LLM-Provider-Router/1.0",
-        "127.0.0.1:18766/v1",
-        "router/auto",
+        "Orchestrator",
     ):
         assert marker in tech_text, f"Missing tech marker {marker!r}"
 
     visual_text = visual_doc.read_text(encoding="utf-8")
-    for marker in ("mermaid", "Mo_Chat_AI", "127.0.0.1:18766", "local-router"):
+    for marker in ("mermaid", "Orchestrator", "llm-router delegate", "llm-router connect"):
         assert marker in visual_text, f"Missing visual guide marker {marker!r}"
+
+    for no_web_ui_file in (root / "README.md", nontech_doc, tech_doc, visual_doc, index_doc, ps_installer, sh_installer):
+        txt_check = no_web_ui_file.read_text(encoding="utf-8")
+        assert "Mo_Chat_AI" not in txt_check, f"Obsolete Mo_Chat_AI ref in {no_web_ui_file.name}"
+        assert "Web Chat UI" not in txt_check, f"Obsolete Web Chat UI ref in {no_web_ui_file.name}"
 
     # Verify public-repo zero-leak hygiene across README, docs, scripts, src, tests
     forbidden_internal = [

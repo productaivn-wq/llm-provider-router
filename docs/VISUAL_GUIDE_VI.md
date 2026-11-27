@@ -1,60 +1,67 @@
-# Hướng Dẫn Trực Quan: Cài Đặt Để Làm Gì & Làm Gì Tiếp Theo?
+# Hướng Dẫn Trực Quan: Cài Để Làm Gì & Dùng Như Thế Nào Sau Khi Cài?
 
-> **Tóm tắt 1 câu:** Cài công cụ này **1 lần duy nhất** để có sẵn **25+ mô hình AI dùng chung hạn mức công ty**, tự động chuyển dự phòng khi quá tải, và mở ngay được bằng **Web Chat trên trình duyệt (`Mo_Chat_AI`)** hoặc gắn vào các **Trợ lý AI / IDE** (`Codex`, `Continue`, `Cursor`, `Antigravity`, `Cline`).
-
----
-
-## 1. Công cụ này để làm gì?
-
-| Lợi ích | Không dùng Router | Dùng `llm-provider-router` |
-|---|---|---|
-| **Số lượng mô hình AI** | Bị kẹt ở 1 tài khoản / 1 mô hình riêng lẻ | Dùng qua **1 đầu mối chung** với nhiều mô hình Chat & Coding |
-| **Khi 1 mô hình quá tải / lỗi** | Ngừng việc giữa chừng | Tự động chuyển sang mô hình dự phòng + hồi phục tự động |
-| **Dùng cho người Non-Tech** | Không biết cấu hình IDE hay terminal | Có sẵn **trang Web Chat AI tiếng Việt** tại `http://127.0.0.1:18766/` (`Mo_Chat_AI.bat`) |
-| **Bảo mật mã khóa** | Dễ lộ khóa trong lịch sử lệnh hoặc chat | Khóa lưu cục bộ (`0600`) và ẩn hoàn toàn khỏi nhật ký |
+> **Tóm tắt 1 câu:** Cài công cụ này **1 lần duy nhất** để **Trợ lý AI bạn đang dùng** (**Antigravity, Claude Code, Codex, Cursor**) giữ vai trò **Nhạc trưởng (Orchestrator)** suy nghĩ và điều phối, còn các việc nặng sẽ **tự động giao cho Sub-Agent OpenAI** chạy qua hạn mức chung của công ty.
 
 ---
 
-## 2. Sơ đồ hoạt động sau khi dán Prompt 1-Shot
+## 1. Cài công cụ này để làm gì?
+
+| Vấn đề trước đây | Sau khi cài `llm-provider-router` |
+|---|---|
+| Cài xong nhưng Trợ lý AI **vẫn dùng cách cũ** (mọi việc đều tự làm bằng Claude/Gemini/tài khoản riêng) | Lệnh `llm-router connect` **gắn quy tắc & kỹ năng thường trực** để Trợ lý AI tự động gọi `llm-router delegate` / `batch` sang **OpenAI công ty** |
+| Phải mở thêm web lạ hoặc tự nhớ lệnh | **Không cần mở phần mềm hay web mới** — tiếp tục chat trong chính Antigravity / Claude / Codex / Cursor |
+| Khó biết máy đang dùng mô hình nào hoặc khi nào dùng | Nhạc trưởng (Claude/AGY/Codex) lo lập kế hoạch & đọc file; Sub-Agent OpenAI (`gpt-5.3-instant` / `gpt-5.3-codex`) gánh viết lách, tóm tắt, phân tích, sinh/review code và chạy song song |
+
+---
+
+## 2. Sơ đồ hoạt động: Nhạc trưởng + Sub-Agent OpenAI
 
 ```mermaid
 flowchart LR
-    A["1. Dán Prompt 1-Shot<br/>vào Trợ lý AI"] --> B["2. Tự cài Python / .venv<br/>+ nạp mã khóa chuẩn UTF-8"]
-    B --> C["3. Lệnh connect bật sẵn<br/>Cổng AI nền :18766"]
-    C --> D["Cách A (Non-Tech)<br/>Nhấp đúp Mo_Chat_AI.bat<br/>Chat ngay tại 127.0.0.1:18766"]
-    C --> E["Cách B (Tech - Tự động)<br/>Shell Env / Codex / Continue<br/>nhận cấu hình tự động"]
-    C --> F["Cách C (App GUI đóng)<br/>Cursor / Antigravity / Cline<br/>Gắn 3 thông số 1 lần duy nhất"]
+    U["1. Bạn giao việc trong<br/>AGY / Claude / Codex / Cursor"] --> O["2. Trợ lý AI chính<br/>(Orchestrator - lập kế hoạch & điều phối)"]
+    O -->|"Tự động gọi khi có việc nặng"| D["3. llm-router delegate / batch<br/>(general | writing | analysis | coding | review)"]
+    D --> P["4. Máy chủ AI công ty<br/>(OpenAI: gpt-5.3-instant / gpt-5.3-codex)"]
+    P --> O
+    O --> R["5. Tổng hợp kết quả hoàn chỉnh<br/>trả lại cho bạn"]
 ```
 
 ---
 
-## 3. Sau khi cài xong thì làm gì tiếp theo?
+## 3. Lệnh `llm-router connect` tự động gắn vào đâu?
 
-### Dành cho người không chuyên kỹ thuật (Non-Tech)
-1. **Cách nhanh nhất (dùng ngay lập tức):** Mở thư mục cài đặt (`llm-provider-router` trong thư mục cá nhân) và **nhấp đúp chuột vào `Mo_Chat_AI.bat`** (Windows) hoặc **`Mo_Chat_AI.command`** (macOS/Linux).
-2. Trình duyệt sẽ mở trang **Trợ Lý AI Nội Bộ** tại `http://127.0.0.1:18766/`:
-   - Tab **1. Chat AI Ngay**: chọn mô hình (`router/auto` hoặc mô hình cụ thể) và hỏi đáp công việc ngay lập tức.
-   - Tab **2. Kết nối Trợ lý AI**: có sẵn nút **Sao chép** 3 thông tin để dán vào ứng dụng AI khác nếu cần.
-3. **Không cần gõ lại lệnh hay cài lại** ở những lần sau — chỉ cần mở `Mo_Chat_AI`.
+Khi chạy 1-shot prompt hoặc trình cài đặt, `llm-router connect` tự động phát hiện và cài quy tắc điều phối cho các trợ lý AI đang có trên máy:
 
-### Dành cho đội kỹ thuật (Tech: DEV / DEVOPS / SEC / DATA)
-
-| Công cụ | Trạng thái sau `llm-router connect` | Bạn cần làm gì tiếp? |
+| Trợ lý AI | Vị trí tự động cài đặt | Cách kích hoạt sau khi cài |
 |---|---|---|
-| **Terminal / Python SDK / OpenAI CLI** | **Tự động kết nối** (`OPENAI_BASE_URL` + `LLM_ROUTER_GATEWAY_URL`) | Mở cửa sổ terminal mới và gọi `http://127.0.0.1:18766/v1` (mã `local-router`, model `router/auto` hoặc `router/coding`) |
-| **Codex CLI (`~/.codex/config.toml`)** | **Tự động thêm profile** `[model_providers.llm_router]` | Chọn provider `llm_router` khi chạy Codex |
-| **Continue (`~/.continue/config.json`)** | **Tự động thêm model** `LLM Provider Router (Auto)` | Chọn model `LLM Provider Router (Auto)` trong khung chat Continue |
-| **Cursor / Antigravity / Cline / ChatBox** | **Ứng dụng GUI đóng** (tôn trọng cài đặt đăng nhập sẵn có, không tự ghi đè) | Mở **Settings → Models / OpenAI-Compatible Provider** → dán 3 giá trị bên dưới → **Save** |
+| **Antigravity (AGY)** | `~/.gemini/config/rules/llm-router-subagent.md` (`trigger: always_on`) + `skills/llm-router-subagent/SKILL.md` | **Mở cuộc trò chuyện mới** là tự áp dụng mọi dự án |
+| **Claude Code** | `~/.claude/CLAUDE.md` + `agents/openai-worker.md` + `skills/llm-router-subagent/SKILL.md` | **Mở phiên Claude mới**; có sẵn sub-agent `openai-worker` |
+| **Codex CLI** | `~/.codex/AGENTS.md` + profile `[model_providers.llm_router]` trong `config.toml` | **Mở phiên Codex mới** là tự đọc quy tắc giao việc |
+| **Cursor** | `.cursor/rules/llm-router-subagent.mdc` (`alwaysApply: true`) | **Mở cửa sổ chat Cursor mới** |
 
-**3 thông số chuẩn để dán vào Cursor / Antigravity / Cline / ChatBox:**
-- **Base URL:** `http://127.0.0.1:18766/v1`
-- **API Key:** `local-router`
-- **Model:** `router/auto` (hoặc `router/coding` khi lập trình)
+> An toàn: Mọi file cấu hình sẵn có đều được sao lưu `.bak` trước khi bổ sung, và hệ thống **tự động bỏ qua** các file quản trị được bảo vệ (`CANARY`).
 
 ---
 
-## 4. Làm sao biết hệ thống đã thật sự hoạt động?
+## 4. Sau khi cài xong thì bạn làm gì tiếp theo?
 
-1. Mở `http://127.0.0.1:18766/` trên trình duyệt → góc phải hiện chữ xanh **"Đã kết nối — N mô hình AI sẵn sàng"**.
-2. Gửi thử 1 câu chào trong tab **Chat AI Ngay** → nhận được câu trả lời kèm tên mô hình và thời gian phản hồi (`ms`).
-3. Nếu gặp máy Windows báo lỗi ký tự UTF / BOM khi dán mã khóa hoặc gõ lệnh: phiên bản `v1.1.0+` tự giải mã UTF-8 / UTF-16 BOM, loại bỏ ký tự ẩn (`\ufeff`, `\u200b`, ngoặc kép cong) và bật sẵn `PYTHONUTF8=1` + `chcp 65001` trong cả bộ cài và các file `.bat`.
+### Bước 1: Mở một cuộc trò chuyện MỚI trong Trợ lý AI quen dùng
+- Đóng khung chat cài đặt cũ, bấm **New Chat / Cuộc trò chuyện mới** trong **Antigravity, Claude Code, Codex hoặc Cursor** (để trợ lý nạp quy tắc mới gắn).
+- **Không cần** mở thêm trình duyệt hay chạy lại lệnh cài đặt.
+
+### Bước 2: Gõ 1 câu kiểm chứng nhanh (để chắc chắn Sub-Agent OpenAI đang chạy)
+Dán câu này vào cuộc trò chuyện mới:
+
+```text
+Hãy giao một việc nhỏ cho OpenAI Sub-Agent qua llm-router để xác nhận kết nối đang chạy, rồi báo lại cho tôi tên model OpenAI vừa trả lời.
+```
+
+Nếu thấy trợ lý gọi `llm-router delegate` và báo lại tên model (ví dụ `chatgpt/gpt-5.3-instant`), nghĩa là **hệ thống đã chạy tự động 100%**.
+
+### Bước 3: Làm việc như bình thường hằng ngày
+- **Người dùng văn phòng (Non-Tech):** Nhờ soạn email, tóm tắt tài liệu, tổng hợp báo cáo, dịch thuật, phân tích phương án → Nhạc trưởng tự gọi sub-agent OpenAI xử lý và trả kết quả tiếng Việt gọn gàng.
+- **Đội kỹ thuật (Tech):** Nhờ sinh code, review PR, phân tích log, hoặc xử lý nhiều file song song → Nhạc trưởng điều phối bằng `llm-router delegate --role coding` hoặc `llm-router batch`.
+
+---
+
+## 5. Khắc phục nhanh nếu máy Windows từng báo lỗi UTF / ký tự lạ
+- Phiên bản `v1.2.0+` bật sẵn `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, tự giải mã `.env` và stdin theo **UTF-8 / UTF-8 BOM / UTF-16 LE BOM**, đồng thời loại bỏ ký tự ẩn (`\ufeff`, `\u200b`, ngoặc kép cong) khi sao chép mã khóa từ email hoặc chat.

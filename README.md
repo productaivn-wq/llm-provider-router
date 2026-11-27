@@ -1,11 +1,11 @@
 # LLM Provider Router
 
-A clean, zero-dependency Python 3.10+ multi-provider LLM router, loopback OpenAI-compatible HTTP gateway, and built-in local Web Chat UI.
+A clean, zero-dependency Python 3.10+ multi-provider LLM router and **Orchestrator + OpenAI Sub-Agent** delegation engine for Antigravity (AGY), Claude Code, Codex, and Cursor.
 
 - **Zero external runtime dependencies**: pure Python standard library (`urllib.request`, `http.server`, `sqlite3`, `json`).
-- **UTF-8 / BOM safe on Windows**: automatically handles UTF-8 BOM, UTF-16 BOM, smart quotes, and zero-width characters in `.env`, stdin, and HTTP headers.
-- **LiteLLM Proxy first + automatic failover**: supports any OpenAI-compatible proxy (`LITELLM_PROXY_URL`) with automatic fallback to `OpenRouter`, `NVIDIA NIM`, `Groq`, `Cerebras`, `OpenAI Direct`, or optional local CLI agents.
-- **Built-in Web Chat UI & 1-click `connect`**: `llm-router connect` starts a persistent detached gateway in the background, serves a Vietnamese Web Chat UI + Connection Hub at `http://127.0.0.1:18766/`, generates `Mo_Chat_AI` / `Mo_Cong_AI` launchers, and safely auto-wires detected local tools (`OPENAI_BASE_URL`, `~/.codex/config.toml`, `~/.continue/config.json`).
+- **Orchestrator + OpenAI Sub-Agent architecture**: keep Antigravity, Claude Code, Codex, or Cursor as your main reasoning **Orchestrator** while automatically offloading sub-agent tasks (`llm-router delegate` and parallel `llm-router batch`) to company OpenAI models (`chatgpt/gpt-5.3-instant`, `chatgpt/gpt-5.3-codex`).
+- **Automatic rule & skill wiring (`llm-router connect`)**: installs always-on rules/skills across Antigravity (`~/.gemini/config/rules/llm-router-subagent.md` + `SKILL.md`), Claude Code (`~/.claude/CLAUDE.md` + `agents/openai-worker.md`), Codex (`~/.codex/AGENTS.md` + `config.toml`), and Cursor (`.cursor/rules/llm-router-subagent.mdc`).
+- **UTF-8 / BOM safe on Windows**: automatically handles UTF-8 BOM, UTF-16 LE/BE BOM, smart quotes, and zero-width characters in `.env`, stdin, context files, and HTTP headers.
 - **SQLite WAL cooldowns & spend breaker**: exponential backoff cooldowns per `(provider, model)`, `Retry-After` support, attempt ring log, and optional daily spend limit.
 - **Secret redaction by default**: registered keys, Bearer tokens, and key-value secrets are stripped from logs, gateway errors, and CLI output.
 
@@ -32,27 +32,25 @@ printf "%s" "<YOUR_API_KEY>" | llm-router setup \
   --probe
 ```
 
-This writes a `0600` `.env` file locally (plus global `~/.llm_provider_router/.env` so `llm-router` works from any folder) and verifies live `/models` connectivity without printing your API key.
+This writes a `0600` `.env` file locally plus `~/.llm_provider_router/.env` (so `llm-router` works from any working directory) and verifies live `/models` connectivity without printing your API key.
 
-### 3. Auto-Connect Tools, Start Background Gateway & Open Web Chat UI
-
-```bash
-llm-router connect --start-gateway --json
-```
-
-Then open `http://127.0.0.1:18766/` (or double-click `Mo_Chat_AI.bat` / `Mo_Chat_AI.command`) to chat immediately or copy the 3-field connection settings (`http://127.0.0.1:18766/v1`, `local-router`, `router/auto`) into Cursor, Antigravity, Cline, or ChatBox.
-
-### 4. Verify CLI
+### 3. Auto-Wire Orchestrator Rules & Test OpenAI Sub-Agent Delegation
 
 ```bash
-llm-router probe --json
-llm-router models
-llm-router chat "Summarize three best practices for clean API design."
+llm-router connect --json
+llm-router delegate --role writing "Confirm OpenAI sub-agent connection in one sentence." --json
+llm-router delegate --role coding "Write a Python function to parse ISO-8601 UTC timestamps." --json
 ```
 
-### Direct OpenAI-Compatible Client Usage (No Local Server Required)
+For parallel fan-out across independent sub-tasks:
 
-If your tool already supports custom base URLs directly, point it straight at your LiteLLM proxy:
+```bash
+llm-router batch --tasks-file tasks.json --max-workers 4 --json
+```
+
+### Direct OpenAI-Compatible Client Usage (Optional)
+
+If a script or client needs raw OpenAI proxy credentials:
 
 - **Base URL**: `https://your-litellm-proxy.example.com/v1`
 - **API Key**: `<YOUR_API_KEY>`
@@ -61,19 +59,21 @@ If your tool already supports custom base URLs directly, point it straight at yo
 ## Python SDK
 
 ```python
-from llm_provider_router import LLMProviderRouter
+from llm_provider_router import LLMProviderRouter, run_delegate
+
+res = run_delegate("Summarize key risks concisely.", role="analysis")
+print(res["content"])
 
 with LLMProviderRouter() as router:
-    res = router.complete("Write a haiku about reliable systems.")
-    print(res.content)
-    print(f"Served by {res.provider} / {res.model} in {res.latency_ms:.0f}ms")
+    out = router.complete("Write a haiku about reliable systems.")
+    print(f"Served by {out.provider} / {out.model}")
 ```
 
 ## 1-Shot Setup Prompts, Visual Guide & Installers
 
 - **Visual Guide ("Why Install & What To Do Next?" in Vietnamese)**: [docs/VISUAL_GUIDE_VI.md](docs/VISUAL_GUIDE_VI.md)
-- **Non-Tech Users (1-Shot Autonomous Runbook + Web Chat UI)**: [docs/AI_SETUP_PROMPT_NONTECH.md](docs/AI_SETUP_PROMPT_NONTECH.md)
-- **Tech Users (CLI + Auto-Connect + IDE Gateway + SDK)**: [docs/AI_SETUP_PROMPT_TECH.md](docs/AI_SETUP_PROMPT_TECH.md)
+- **Non-Tech Users (1-Shot Autonomous Runbook)**: [docs/AI_SETUP_PROMPT_NONTECH.md](docs/AI_SETUP_PROMPT_NONTECH.md)
+- **Tech Users (1-Shot Runbook + Delegate/Batch + SDK)**: [docs/AI_SETUP_PROMPT_TECH.md](docs/AI_SETUP_PROMPT_TECH.md)
 - **Prompt Index**: [docs/AI_SETUP_PROMPT.md](docs/AI_SETUP_PROMPT.md)
 - **Native 1-Command Scripts**: [scripts/install.ps1](scripts/install.ps1) (Windows) and [scripts/install.sh](scripts/install.sh) (macOS/Linux)
 

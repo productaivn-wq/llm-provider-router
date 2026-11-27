@@ -13,6 +13,7 @@ from .config import (
     validate_outbound_url,
 )
 from .connect import connect_clients
+from .delegate import run_batch, run_delegate
 from .gateway import LocalOpenAIGateway, start_gateway
 from .providers import (
     AllProvidersFailedError,
@@ -32,7 +33,7 @@ from .providers import (
 from .router import LLMProviderRouter
 from .state import RouterStateStore
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     "__version__",
@@ -59,6 +60,8 @@ __all__ = [
     "load_dotenv_file",
     "redact_secrets",
     "register_runtime_secret",
+    "run_batch",
+    "run_delegate",
     "sanitize_header_value",
     "start_gateway",
     "validate_outbound_url",

@@ -97,15 +97,11 @@ def test_gateway_auth_models_and_chat_roundtrip() -> None:
     base = f"http://{gw_host}:{gw_port}"
 
     try:
-        # 1. /healthz and GET / Web Chat UI accessible cleanly without leaking upstream keys
-        with urllib.request.urlopen(f"{base}/", timeout=5) as ui_resp:
-            assert ui_resp.status == 200
-            assert "text/html" in (ui_resp.headers.get("Content-Type") or "")
-            ui_html = ui_resp.read().decode("utf-8")
-        assert "Trợ Lý AI Nội Bộ" in ui_html
-        assert f"{base}/v1" in ui_html
-        assert up_key not in ui_html
-        assert gw_token not in ui_html
+        # 1. /healthz accessible without Bearer token; authenticated GET / returns 404 (no Web UI)
+        req_root = urllib.request.Request(f"{base}/", headers={"Authorization": f"Bearer {gw_token}"})
+        with pytest.raises(urllib.error.HTTPError) as exc_root:
+            urllib.request.urlopen(req_root, timeout=5)
+        assert exc_root.value.code == 404
 
         with urllib.request.urlopen(f"{base}/healthz", timeout=5) as resp:
             hz = json.loads(resp.read().decode("utf-8"))
@@ -225,52 +221,133 @@ def test_gateway_concurrent_requests_with_wal_store(tmp_path: Path) -> None:
         upstream.server_close()
 
 
-def test_connect_clients_writes_launchers_and_wires_codex_continue(tmp_path: Path) -> None:
+def test_connect_clients_wires_agy_claude_codex_cursor_and_respects_canary(
+    tmp_path: Path, monkeypatch
+) -> None:
     from llm_provider_router.connect import connect_clients, wire_shell_env
 
     fake_home = tmp_path / "home"
-    (fake_home / ".codex").mkdir(parents=True)
-    (fake_home / ".codex" / "config.toml").write_text('model = "gpt-5.3"\n', encoding="utf-8")
-    (fake_home / ".continue").mkdir(parents=True)
-    (fake_home / ".continue" / "config.json").write_text(
-        json.dumps({"models": [{"title": "Existing", "provider": "openai", "model": "gpt-4o"}]}),
-        encoding="utf-8",
+    (fake_home / ".gemini" / "config").mkdir(parents=True)
+    (fake_home / ".gemini" / "config" / "AGENTS.md").write_text(
+        "[CANARY:AGENTS.md:GOVERNED]\n# Protected Global Harness\n", encoding="utf-8"
     )
+    (fake_home / ".claude").mkdir(parents=True)
+    (fake_home / ".claude" / "CLAUDE.md").write_text("# User Claude Rules\n", encoding="utf-8")
+    (fake_home / ".codex").mkdir(parents=True)
+    (fake_home / ".codex" / "AGENTS.md").write_text(
+        "[CANARY:AGENTS.md:GOVERNED]\n# Protected Codex Rules\n", encoding="utf-8"
+    )
+    (fake_home / ".codex" / "config.toml").write_text('model = "gpt-5.3"\n', encoding="utf-8")
+
+    fake_ws = tmp_path / "workspace"
+    fake_ws.mkdir()
+
     install_dir = tmp_path / "router_install"
     env_file = install_dir / ".env"
     install_dir.mkdir()
     env_file.write_text("LITELLM_PROXY_URL=https://proxy.example.com/v1\n", encoding="utf-8")
+    monkeypatch.setenv("ROUTER_STATE_DB", str(tmp_path / "state_connect.db"))
 
     res = connect_clients(
         env_file=env_file,
         install_dir=install_dir,
         home_dir=fake_home,
+        workspace_dir=fake_ws,
+        python_exe="python3",
         start_gateway=False,
-        clients="codex,continue",
+        clients="agy,claude,codex,cursor",
         dry_run=False,
     )
     assert res["ok"] is True
-    assert res["chat_ui_url"] == "http://127.0.0.1:18766/"
-    assert (install_dir / "Mo_Chat_AI.bat").is_file()
-    assert (install_dir / "Mo_Cong_AI.bat").is_file()
-    assert (install_dir / "Mo_Chat_AI.command").is_file()
-    assert (install_dir / "Mo_Cong_AI.command").is_file()
-    assert "chcp 65001" in (install_dir / "Mo_Chat_AI.bat").read_text(encoding="utf-8")
+    assert res["orchestrator_mode"] == "orchestrator_plus_openai_subagent"
 
+    # Antigravity gets standalone always_on rule + skill while protected AGENTS.md stays untouched
+    agy_rule = fake_home / ".gemini" / "config" / "rules" / "llm-router-subagent.md"
+    agy_skill = fake_home / ".gemini" / "config" / "skills" / "llm-router-subagent" / "SKILL.md"
+    assert agy_rule.is_file() and "trigger: always_on" in agy_rule.read_text(encoding="utf-8")
+    assert agy_skill.is_file() and "delegate --role" in agy_skill.read_text(encoding="utf-8")
+    assert "LLM-PROVIDER-ROUTER" not in (fake_home / ".gemini" / "config" / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
+
+    # Claude Code gets CLAUDE.md block + .bak + agents/openai-worker.md
+    claude_md = (fake_home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "BEGIN LLM-PROVIDER-ROUTER-ORCHESTRATOR" in claude_md
+    assert (fake_home / ".claude" / "CLAUDE.md.bak").is_file()
+    assert (fake_home / ".claude" / "agents" / "openai-worker.md").is_file()
+
+    # Codex skips CANARY AGENTS.md cleanly while updating config.toml
     codex_cfg = (fake_home / ".codex" / "config.toml").read_text(encoding="utf-8")
     assert "[model_providers.llm_router]" in codex_cfg
-    assert (fake_home / ".codex" / "config.toml.bak").is_file()
+    assert "LLM-PROVIDER-ROUTER" not in (fake_home / ".codex" / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
 
-    cont_cfg = json.loads((fake_home / ".continue" / "config.json").read_text(encoding="utf-8"))
-    titles = [m["title"] for m in cont_cfg["models"]]
-    assert "Existing" in titles and "LLM Provider Router (Auto)" in titles
-    assert (fake_home / ".continue" / "config.json.bak").is_file()
+    # Cursor workspace rule created cleanly
+    cursor_mdc = fake_ws / ".cursor" / "rules" / "llm-router-subagent.mdc"
+    assert cursor_mdc.is_file() and "alwaysApply: true" in cursor_mdc.read_text(encoding="utf-8")
 
     sh_res = wire_shell_env(
         fake_home,
-        "http://127.0.0.1:18766/v1",
         install_dir=install_dir,
+        python_exe="python3",
         posix_only_for_test=True,
     )
     assert sh_res["status"] == "configured"
-    assert "LLM_ROUTER_GATEWAY_URL" in (fake_home / ".bashrc").read_text(encoding="utf-8")
+    assert "LLM_ROUTER_HOME" in (fake_home / ".bashrc").read_text(encoding="utf-8")
+
+
+def test_delegate_and_batch_offload_to_openai_roles(tmp_path: Path, monkeypatch) -> None:
+    from llm_provider_router.delegate import run_batch, run_delegate
+
+    upstream, up_url = _start_upstream()
+    store = RouterStateStore(tmp_path / "delegate_state.db")
+    cfg = RouterConfig(
+        providers=[
+            ProviderConfig(
+                name="litellm_proxy",
+                display_name="Upstream",
+                base_url=up_url,
+                api_key="-".join(["sk", "del", "DelegateTestKey00001"]),
+                default_model="chatgpt/gpt-5.3-instant",
+                coding_model="chatgpt/gpt-5.3-codex",
+            )
+        ]
+    )
+    router = LLMProviderRouter(config=cfg, state_store=store)
+    ctx_file = tmp_path / "bom_note.txt"
+    ctx_file.write_bytes("Xin chào OpenAI sub-agent".encode("utf-16"))
+    monkeypatch.setenv("ROUTER_STATE_DB", str(tmp_path / "delegate_state.db"))
+
+    try:
+        res_write = run_delegate(
+            "Summarize this note",
+            role="writing",
+            context_files=[ctx_file],
+            router=router,
+        )
+        assert res_write["ok"] is True
+        assert res_write["content"] == "Gateway OK"
+        assert res_write["model"] == "chatgpt/gpt-5.3-instant"
+
+        res_code = run_delegate("Write helper", role="coding", router=router)
+        assert res_code["ok"] is True
+        assert res_code["model"] == "chatgpt/gpt-5.3-codex"
+
+        batch_res = run_batch(
+            [
+                {"id": "w1", "role": "analysis", "task": "Analyze item 1"},
+                {"id": "w2", "role": "review", "task": "Review item 2"},
+            ],
+            max_workers=2,
+            router=router,
+        )
+        assert batch_res["ok"] is True
+        assert batch_res["succeeded"] == 2
+        assert [r["id"] for r in batch_res["results"]] == ["w1", "w2"]
+        assert batch_res["results"][0]["model"] == "chatgpt/gpt-5.3-instant"
+        assert batch_res["results"][1]["model"] == "chatgpt/gpt-5.3-codex"
+    finally:
+        router.close()
+        upstream.shutdown()
+        upstream.server_close()

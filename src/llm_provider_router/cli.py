@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import (
+    _read_text_auto_encoding,
     default_global_env_path,
     load_dotenv_file,
     normalize_openai_base_url,
@@ -20,6 +21,7 @@ from .config import (
     validate_outbound_url,
 )
 from .connect import connect_clients
+from .delegate import ROLE_PRESETS, run_batch, run_delegate
 from .gateway import LocalOpenAIGateway
 from .providers import AllProvidersFailedError
 from .router import LLMProviderRouter
@@ -286,17 +288,52 @@ def _cmd_connect(args: argparse.Namespace) -> int:
     res = connect_clients(
         env_file=Path(args.env_file).expanduser() if args.env_file else None,
         install_dir=Path(args.install_dir).expanduser() if args.install_dir else None,
+        home_dir=Path(args.home_dir).expanduser() if args.home_dir else None,
+        workspace_dir=Path(args.workspace).expanduser() if args.workspace else None,
+        python_exe=args.python_exe,
         start_gateway=bool(args.start_gateway),
         clients=args.clients,
-        open_ui=bool(args.open_ui),
         dry_run=bool(args.dry_run),
     )
     if args.json:
         print(json.dumps(res, ensure_ascii=False, indent=2))
     else:
+        active = [c["client"] for c in res.get("auto_connected", []) if c.get("status") == "configured"]
         print(
-            f"Gateway ready at {res['gateway_url']} | Chat UI: {res['chat_ui_url']} "
-            f"(running={res['gateway'].get('running')})"
+            f"Orchestrator + OpenAI sub-agent ready ({res['python_exe']}) | wired={active}"
+        )
+    return 0 if res.get("ok") else 1
+
+
+def _cmd_delegate(args: argparse.Namespace) -> int:
+    res = run_delegate(
+        args.prompt,
+        role=args.role,
+        context_files=args.context_file or None,
+        system_prompt=args.system,
+        model=args.model,
+        max_tokens=args.max_tokens,
+        timeout=args.timeout,
+        env_file=args.env_file,
+    )
+    if args.json:
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+    elif res.get("ok"):
+        print(res["content"])
+    else:
+        print(res.get("error", "Delegation failed"), file=sys.stderr)
+    return 0 if res.get("ok") else 1
+
+
+def _cmd_batch(args: argparse.Namespace) -> int:
+    tasks_path = Path(args.tasks_file).expanduser()
+    tasks = json.loads(_read_text_auto_encoding(tasks_path))
+    res = run_batch(tasks, max_workers=args.max_workers, env_file=args.env_file)
+    if args.json:
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+    else:
+        print(
+            f"Batch completed: ok={res['ok']} succeeded={res['succeeded']}/{res['total']}"
         )
     return 0 if res.get("ok") else 1
 
@@ -375,32 +412,69 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_connect = sub.add_parser(
         "connect",
-        help="Start background gateway, generate 1-click Web Chat UI launchers, and auto-wire local AI tools",
+        help="Auto-wire Orchestrator rules & skills across Antigravity, Claude Code, Codex, and Cursor",
     )
     p_connect.add_argument(
         "--start-gateway",
         dest="start_gateway",
         action="store_true",
-        default=True,
-        help="Start detached loopback gateway in background if not running (default)",
+        default=False,
+        help="Optionally start detached loopback HTTP gateway in background",
     )
     p_connect.add_argument(
         "--no-start-gateway",
         dest="start_gateway",
         action="store_false",
-        help="Only write launchers and wire tool configs without spawning gateway",
+        help="Skip spawning background gateway (default)",
     )
     p_connect.add_argument(
         "--clients",
         default="auto",
-        help="Comma-separated clients to auto-wire: auto, shell, codex, continue",
+        help="Comma-separated clients to auto-wire: auto, agy, claude, codex, cursor, env",
     )
-    p_connect.add_argument("--install-dir", default=None, help="Folder for 1-click launchers")
+    p_connect.add_argument("--install-dir", default=None, help="Installed router folder path")
+    p_connect.add_argument("--workspace", default=None, help="Optional workspace path for project rules")
+    p_connect.add_argument("--home-dir", default=None, help="Override home directory for config discovery")
+    p_connect.add_argument("--python-exe", default=None, help="Override Python executable path in rules")
     p_connect.add_argument("--env-file", default=None, help="Path to .env file")
-    p_connect.add_argument("--open-ui", action="store_true", help="Open Web Chat UI in browser")
     p_connect.add_argument("--dry-run", action="store_true", help="Preview without modifying files")
     p_connect.add_argument("--json", action="store_true", help="Emit JSON output")
     p_connect.set_defaults(func=_cmd_connect)
+
+    p_delegate = sub.add_parser(
+        "delegate",
+        help="Execute one sub-agent worker task routed to OpenAI via the proxy",
+    )
+    p_delegate.add_argument("prompt", help="Task instruction for the OpenAI sub-agent")
+    p_delegate.add_argument(
+        "--role",
+        default="general",
+        choices=sorted(ROLE_PRESETS),
+        help="Worker specialization (coding/review -> coding model; others -> default model)",
+    )
+    p_delegate.add_argument(
+        "--context-file",
+        action="append",
+        default=[],
+        help="Optional UTF-8/UTF-16 context file path to attach (repeatable)",
+    )
+    p_delegate.add_argument("--system", default=None, help="Override role system prompt")
+    p_delegate.add_argument("--model", default=None, help="Override target upstream model ID")
+    p_delegate.add_argument("--max-tokens", type=int, default=None, help="Optional max output tokens")
+    p_delegate.add_argument("--timeout", type=float, default=None, help="Request timeout in seconds")
+    p_delegate.add_argument("--env-file", default=None, help="Path to .env file")
+    p_delegate.add_argument("--json", action="store_true", help="Emit JSON output")
+    p_delegate.set_defaults(func=_cmd_delegate)
+
+    p_batch = sub.add_parser(
+        "batch",
+        help="Execute multiple independent OpenAI sub-agent tasks in parallel from a JSON file",
+    )
+    p_batch.add_argument("--tasks-file", required=True, help="JSON list of {id, task, role, context_files}")
+    p_batch.add_argument("--max-workers", type=int, default=4, help="Parallel workers (1-8)")
+    p_batch.add_argument("--env-file", default=None, help="Path to .env file")
+    p_batch.add_argument("--json", action="store_true", help="Emit JSON output")
+    p_batch.set_defaults(func=_cmd_batch)
 
     return parser
 

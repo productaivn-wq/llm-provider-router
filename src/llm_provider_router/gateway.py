@@ -12,7 +12,6 @@ from typing import Any
 from .config import redact_secrets
 from .providers import AllProvidersFailedError
 from .router import LLMProviderRouter
-from .webui import render_chat_ui_html
 
 logger = logging.getLogger(__name__)
 
@@ -82,19 +81,6 @@ class _GatewayRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
         self.wfile.flush()
 
-    def _send_html(self, status_code: int, html_text: str) -> None:
-        body = html_text.encode("utf-8")
-        self.send_response(status_code)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        if (self.headers.get("Connection") or "").lower() == "close":
-            self.send_header("Connection", "close")
-            self.close_connection = True
-        self.end_headers()
-        self.wfile.write(body)
-        self.wfile.flush()
-
     def _send_sse_completion(self, payload: dict[str, Any]) -> None:
         """Emit OpenAI-compatible SSE chunks when client requests `stream=true`."""
         choice = payload["choices"][0]
@@ -148,17 +134,6 @@ class _GatewayRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?", 1)[0]
-        if path in ("/", "/ui", "/index.html"):
-            h, p = self.server.server_address[:2]
-            self._send_html(
-                200,
-                render_chat_ui_html(
-                    gateway_url=f"http://{h}:{p}/v1",
-                    auth_required=bool(self.server.gateway_token),
-                ),
-            )
-            return
-
         if path in ("/healthz", "/health"):
             st = self.server.router.status()
             self._send_json(

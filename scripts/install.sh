@@ -111,14 +111,13 @@ printf "%s" "$API_KEY" | "$VENV_PY" -m llm_provider_router setup \
   --probe \
   --json
 
-echo "[5/5] Starting background gateway, creating 1-click launchers (Mo_Chat_AI.command / Mo_Cong_AI.command), and auto-connecting tools..."
-"$VENV_PY" -m llm_provider_router connect --start-gateway --install-dir "$INSTALL_DIR" --env-file "$ENV_FILE" --json >/dev/null
-LAUNCHER="$INSTALL_DIR/Mo_Chat_AI.command"
+echo "[5/5] Auto-wiring Orchestrator rules & skills (AGY / Claude / Codex / Cursor)..."
+"$VENV_PY" -m llm_provider_router connect --install-dir "$INSTALL_DIR" --python-exe "$VENV_PY" --env-file "$ENV_FILE" --json
 
 if [[ "$SKIP_CHAT" -eq 0 ]]; then
-  echo "[Verify] Listing models and testing live inference..."
+  echo "[Verify] Listing models and testing OpenAI sub-agent delegation..."
   "$VENV_PY" -m llm_provider_router models --env-file "$ENV_FILE" --json >/dev/null
-  "$VENV_PY" -m llm_provider_router chat "Reply OK if connected" --env-file "$ENV_FILE" --json
+  "$VENV_PY" -m llm_provider_router delegate --env-file "$ENV_FILE" --role writing "Reply OK if connected" --json
 fi
 
-echo "Setup complete. Web Chat UI: http://127.0.0.1:18766/ | Install folder: $INSTALL_DIR | 1-click launcher: $LAUNCHER"
+echo "Setup complete. Install folder: $INSTALL_DIR. Open a NEW chat in Antigravity / Claude / Codex / Cursor to start offloading sub-tasks to OpenAI."

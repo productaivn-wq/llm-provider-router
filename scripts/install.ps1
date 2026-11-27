@@ -134,14 +134,13 @@ $ApiKey | & $VenvPy -m llm_provider_router setup `
     --probe `
     --json
 
-Write-Host "[5/5] Starting background gateway, creating 1-click launchers (Mo_Chat_AI.bat / Mo_Cong_AI.bat), and auto-connecting tools..."
-& $VenvPy -m llm_provider_router connect --start-gateway --install-dir $InstallDir --env-file $EnvPath --json | Out-Null
-$LauncherPath = Join-Path $InstallDir "Mo_Chat_AI.bat"
+Write-Host "[5/5] Auto-wiring Orchestrator rules & skills (AGY / Claude / Codex / Cursor)..."
+& $VenvPy -m llm_provider_router connect --install-dir $InstallDir --python-exe $VenvPy --env-file $EnvPath --json
 
 if (-not $SkipChatTest) {
-    Write-Host "[Verify] Listing models and testing live inference..."
+    Write-Host "[Verify] Listing models and testing OpenAI sub-agent delegation..."
     & $VenvPy -m llm_provider_router models --env-file $EnvPath --json | Out-Null
-    & $VenvPy -m llm_provider_router chat "Reply OK if connected" --env-file $EnvPath --json
+    & $VenvPy -m llm_provider_router delegate --env-file $EnvPath --role writing "Reply OK if connected" --json
 }
 
-Write-Host "Setup complete. Web Chat UI: http://127.0.0.1:18766/ | Install folder: $InstallDir | 1-click launcher: $LauncherPath"
+Write-Host "Setup complete. Install folder: $InstallDir. Open a NEW chat in Antigravity / Claude / Codex / Cursor to start offloading sub-tasks to OpenAI."
