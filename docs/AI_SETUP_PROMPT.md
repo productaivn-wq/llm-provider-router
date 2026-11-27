@@ -2,9 +2,11 @@
 
 Choose the 1-shot setup guide matching your role and paste it into your AI assistant (Antigravity, Claude Code, Codex, Cursor, or GitHub Copilot):
 
-- **Non-Tech Users** (Business, Product, HR, Finance, Ops, Leadership — zero terminal knowledge needed, 7-phase autonomous runbook with automatic Python/ZIP fallbacks and 1-click launcher):
+- **Visual Overview ("Why Install & What To Do Next?" in Vietnamese)**:
+  - See [docs/VISUAL_GUIDE_VI.md](VISUAL_GUIDE_VI.md)
+- **Non-Tech Users** (Business, Product, HR, Finance, Ops, Leadership — zero terminal knowledge needed, UTF-8/BOM safe, 7-phase autonomous runbook + Web Chat UI `Mo_Chat_AI` launcher):
   - See [docs/AI_SETUP_PROMPT_NONTECH.md](AI_SETUP_PROMPT_NONTECH.md)
-- **Tech Users** (DEV, DevOps, Security, Data — streamlined CLI + loopback gateway & SDK integration):
+- **Tech Users** (DEV, DevOps, Security, Data — UTF-8 safe CLI, `llm-router connect` background gateway + Codex/Continue/env auto-wiring + SDK):
   - See [docs/AI_SETUP_PROMPT_TECH.md](AI_SETUP_PROMPT_TECH.md)
 - **1-Command Native Installers** (optional direct scripts without AI prompt):
   - Windows PowerShell: `scripts/install.ps1`
@@ -23,6 +25,6 @@ Please set up `llm-provider-router` cleanly on this machine so I have a working 
    Run:
    <VENV_PY> -m llm_provider_router setup --url <PROXY_URL> --api-key-stdin --model chatgpt/gpt-5.3-instant --coding-model chatgpt/gpt-5.3-codex --user-agent LLM-Provider-Router/1.0 --probe --json
    passing this API key via stdin: <YOUR_API_KEY>
-4. Run `<VENV_PY> -m llm_provider_router models` and `<VENV_PY> -m llm-provider-router chat "Reply OK if connected"` to verify end-to-end inference works.
-5. Create a 1-click launcher (`Mo_Cong_AI.bat` or `Mo_Cong_AI.command`) to run `<VENV_PY> -m llm_provider_router serve` on `http://127.0.0.1:18766/v1`, verify `/v1/models` returns 200, and keep all API keys masked in any output.
+4. Run `<VENV_PY> -m llm_provider_router models` and `<VENV_PY> -m llm_provider_router chat "Reply OK if connected"` to verify end-to-end inference works.
+5. Run `<VENV_PY> -m llm_provider_router connect --start-gateway --json` to start the background gateway, generate `Mo_Chat_AI` / `Mo_Cong_AI` launchers, and auto-wire local tools. Verify `http://127.0.0.1:18766/` (Web Chat UI) and `http://127.0.0.1:18766/v1/models` return HTTP 200, keep all API keys masked, and explain what was auto-connected vs the 3-field switch (`http://127.0.0.1:18766/v1`, `local-router`, `router/auto`) for GUI apps.
 ```

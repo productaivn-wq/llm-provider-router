@@ -17,7 +17,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 $RepoUrl = "https://github.com/productaivn-wq/llm-provider-router.git"
 $ZipUrl = "https://github.com/productaivn-wq/llm-provider-router/archive/refs/heads/main.zip"
 
@@ -130,17 +134,9 @@ $ApiKey | & $VenvPy -m llm_provider_router setup `
     --probe `
     --json
 
-Write-Host "[5/5] Creating 1-click launcher Mo_Cong_AI.bat..."
-$LauncherPath = Join-Path $InstallDir "Mo_Cong_AI.bat"
-$LauncherBody = @"
-@echo off
-title Cong AI Noi Bo (http://127.0.0.1:18766/v1)
-cd /d "%~dp0"
-echo Dang khoi dong Cong AI cuc bo tai http://127.0.0.1:18766/v1 ...
-".venv\Scripts\python.exe" -m llm_provider_router serve
-pause
-"@
-Set-Content -Path $LauncherPath -Value $LauncherBody -Encoding ASCII
+Write-Host "[5/5] Starting background gateway, creating 1-click launchers (Mo_Chat_AI.bat / Mo_Cong_AI.bat), and auto-connecting tools..."
+& $VenvPy -m llm_provider_router connect --start-gateway --install-dir $InstallDir --env-file $EnvPath --json | Out-Null
+$LauncherPath = Join-Path $InstallDir "Mo_Chat_AI.bat"
 
 if (-not $SkipChatTest) {
     Write-Host "[Verify] Listing models and testing live inference..."
@@ -148,4 +144,4 @@ if (-not $SkipChatTest) {
     & $VenvPy -m llm_provider_router chat "Reply OK if connected" --env-file $EnvPath --json
 }
 
-Write-Host "Setup complete. Install folder: $InstallDir | Launcher: $LauncherPath"
+Write-Host "Setup complete. Web Chat UI: http://127.0.0.1:18766/ | Install folder: $InstallDir | 1-click launcher: $LauncherPath"

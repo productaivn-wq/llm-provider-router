@@ -3,6 +3,8 @@
 set -euo pipefail
 
 export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
+export LANG="${LANG:-C.UTF-8}"
 REPO_URL="https://github.com/productaivn-wq/llm-provider-router.git"
 ZIP_URL="https://github.com/productaivn-wq/llm-provider-router/archive/refs/heads/main.zip"
 INSTALL_DIR="${ROUTER_INSTALL_DIR:-$HOME/llm-provider-router}"
@@ -109,15 +111,9 @@ printf "%s" "$API_KEY" | "$VENV_PY" -m llm_provider_router setup \
   --probe \
   --json
 
-echo "[5/5] Creating 1-click launcher Mo_Cong_AI.command..."
-LAUNCHER="$INSTALL_DIR/Mo_Cong_AI.command"
-cat > "$LAUNCHER" <<'EOF'
-#!/usr/bin/env bash
-cd "$(dirname "$0")"
-echo "Dang khoi dong Cong AI cuc bo tai http://127.0.0.1:18766/v1 ..."
-exec "./.venv/bin/python" -m llm_provider_router serve
-EOF
-chmod +x "$LAUNCHER"
+echo "[5/5] Starting background gateway, creating 1-click launchers (Mo_Chat_AI.command / Mo_Cong_AI.command), and auto-connecting tools..."
+"$VENV_PY" -m llm_provider_router connect --start-gateway --install-dir "$INSTALL_DIR" --env-file "$ENV_FILE" --json >/dev/null
+LAUNCHER="$INSTALL_DIR/Mo_Chat_AI.command"
 
 if [[ "$SKIP_CHAT" -eq 0 ]]; then
   echo "[Verify] Listing models and testing live inference..."
@@ -125,4 +121,4 @@ if [[ "$SKIP_CHAT" -eq 0 ]]; then
   "$VENV_PY" -m llm_provider_router chat "Reply OK if connected" --env-file "$ENV_FILE" --json
 fi
 
-echo "Setup complete. Install folder: $INSTALL_DIR | Launcher: $LAUNCHER"
+echo "Setup complete. Web Chat UI: http://127.0.0.1:18766/ | Install folder: $INSTALL_DIR | 1-click launcher: $LAUNCHER"

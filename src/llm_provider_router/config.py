@@ -48,6 +48,44 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 _BLOCKED_METADATA_HOSTS = frozenset({"metadata.google.internal", "metadata.goog"})
+_INVISIBLE_CONTROL_CHARS_RE = re.compile(r"[\ufeff\u200b\u200c\u200d\u2060\xa0\r\n\x00]")
+_SMART_QUOTE_TRANS = str.maketrans({"\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'"})
+
+
+def default_global_env_path() -> Path:
+    """Return the fallback per-user `.env` path so `llm-router` works from any directory."""
+    return Path.home() / ".llm_provider_router" / ".env"
+
+
+def _read_text_auto_encoding(path: Path) -> str:
+    """Decode config text safely across UTF-8, UTF-8 BOM, and Windows UTF-16 LE/BE BOM."""
+    raw = path.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16", errors="replace")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw.decode("utf-8-sig", errors="replace")
+    return raw.decode("utf-8", errors="replace")
+
+
+def sanitize_header_value(
+    value: str | None,
+    *,
+    field_name: str = "header",
+    require_ascii: bool = True,
+) -> str:
+    """Strip BOM, zero-width spaces, smart quotes, and line breaks from header/key strings."""
+    cleaned = _INVISIBLE_CONTROL_CHARS_RE.sub("", str(value or "")).translate(_SMART_QUOTE_TRANS)
+    cleaned = cleaned.strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in ('"', "'"):
+        cleaned = cleaned[1:-1].strip()
+    if require_ascii and cleaned:
+        try:
+            cleaned.encode("latin-1")
+        except UnicodeEncodeError as exc:
+            raise ValueError(
+                f"Invalid non-ASCII characters in {field_name}; remove extra copied Vietnamese text or symbols."
+            ) from exc
+    return cleaned
 
 
 def register_runtime_secret(value: str | None) -> None:
@@ -143,8 +181,8 @@ def load_dotenv_file(
         return {}
 
     parsed: dict[str, str] = {}
-    for raw_line in target.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = raw_line.strip()
+    for raw_line in _read_text_auto_encoding(target).splitlines():
+        line = _INVISIBLE_CONTROL_CHARS_RE.sub("", raw_line).strip()
         if not line or line.startswith("#"):
             continue
         if line.startswith("export "):
@@ -152,10 +190,10 @@ def load_dotenv_file(
         if "=" not in line:
             continue
         key, raw_val = line.split("=", 1)
-        key = key.strip()
+        key = _INVISIBLE_CONTROL_CHARS_RE.sub("", key).strip()
         if not key or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
             continue
-        val = _unquote_env_value(raw_val)
+        val = _INVISIBLE_CONTROL_CHARS_RE.sub("", _unquote_env_value(raw_val))
         parsed[key] = val
         if override or not os.environ.get(key):
             os.environ[key] = val
@@ -291,20 +329,38 @@ class RouterConfig:
         if env_file is not None:
             load_dotenv_file(env_file, override=True if override_env is None else override_env)
         else:
+            eff_override = False if override_env is None else override_env
             default_env = Path.cwd() / ".env"
             if default_env.is_file():
-                load_dotenv_file(
-                    default_env, override=False if override_env is None else override_env
-                )
+                load_dotenv_file(default_env, override=eff_override)
+            global_env = default_global_env_path()
+            if global_env.is_file() and global_env.resolve() != default_env.resolve():
+                load_dotenv_file(global_env, override=eff_override)
 
-        litellm_key = os.environ.get("LITELLM_API_KEY", "").strip()
-        litellm_url = normalize_openai_base_url(os.environ.get("LITELLM_PROXY_URL", ""))
-        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-        nvidia_key = os.environ.get("NVIDIA_API_KEY", "").strip()
-        groq_key = os.environ.get("GROQ_API_KEY", "").strip()
-        cerebras_key = os.environ.get("CEREBRAS_API_KEY", "").strip()
-        openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
-        gw_token = os.environ.get("ROUTER_GATEWAY_TOKEN", "").strip()
+        litellm_key = sanitize_header_value(
+            os.environ.get("LITELLM_API_KEY", ""),
+            field_name="LITELLM_API_KEY",
+            require_ascii=False,
+        )
+        litellm_url = normalize_openai_base_url(
+            sanitize_header_value(
+                os.environ.get("LITELLM_PROXY_URL", ""),
+                field_name="LITELLM_PROXY_URL",
+                require_ascii=False,
+            )
+        )
+        openrouter_key = sanitize_header_value(
+            os.environ.get("OPENROUTER_API_KEY", ""), require_ascii=False
+        )
+        nvidia_key = sanitize_header_value(os.environ.get("NVIDIA_API_KEY", ""), require_ascii=False)
+        groq_key = sanitize_header_value(os.environ.get("GROQ_API_KEY", ""), require_ascii=False)
+        cerebras_key = sanitize_header_value(
+            os.environ.get("CEREBRAS_API_KEY", ""), require_ascii=False
+        )
+        openai_key = sanitize_header_value(os.environ.get("OPENAI_API_KEY", ""), require_ascii=False)
+        gw_token = sanitize_header_value(
+            os.environ.get("ROUTER_GATEWAY_TOKEN", ""), require_ascii=False
+        )
 
         for sec in (
             litellm_key,
@@ -318,7 +374,11 @@ class RouterConfig:
             register_runtime_secret(sec)
 
         ua = (
-            os.environ.get("LITELLM_USER_AGENT", "LLM-Provider-Router/1.0").strip()
+            sanitize_header_value(
+                os.environ.get("LITELLM_USER_AGENT", "LLM-Provider-Router/1.0"),
+                field_name="LITELLM_USER_AGENT",
+                require_ascii=False,
+            )
             or "LLM-Provider-Router/1.0"
         )
         litellm_timeout = max(1.0, _parse_float(os.environ.get("LITELLM_TIMEOUT"), 45.0))

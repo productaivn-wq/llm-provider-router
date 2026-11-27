@@ -15,7 +15,13 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from .config import ProviderConfig, RouterConfig, redact_secrets, validate_outbound_url
+from .config import (
+    ProviderConfig,
+    RouterConfig,
+    redact_secrets,
+    sanitize_header_value,
+    validate_outbound_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -236,16 +242,34 @@ class OpenAICompatTier(BaseProviderTier):
         return f"{base}/v1/chat/completions", f"{base}/v1/models"
 
     def _headers(self) -> dict[str, str]:
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": self.config.user_agent or "LLM-Provider-Router/1.0",
-        }
-        if self.config.api_key:
-            headers["Authorization"] = f"Bearer {self.config.api_key}"
-        for k, v in self.config.extra_headers.items():
-            headers[k] = v
-        return headers
+        try:
+            ua = (
+                sanitize_header_value(
+                    self.config.user_agent or "LLM-Provider-Router/1.0",
+                    field_name="User-Agent",
+                    require_ascii=True,
+                )
+                or "LLM-Provider-Router/1.0"
+            )
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": ua,
+            }
+            if self.config.api_key:
+                clean_key = sanitize_header_value(
+                    self.config.api_key, field_name="API key", require_ascii=True
+                )
+                headers["Authorization"] = f"Bearer {clean_key}"
+            for k, v in self.config.extra_headers.items():
+                headers[k] = sanitize_header_value(v, field_name=f"header {k}", require_ascii=True)
+            return headers
+        except ValueError as exc:
+            raise ProviderError(
+                f"[{self.display_name}] {exc}",
+                provider=self.name,
+                retryable=False,
+            ) from exc
 
     def is_available(self) -> bool:
         if not self.config.is_configured():

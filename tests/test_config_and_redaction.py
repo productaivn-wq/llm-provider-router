@@ -104,3 +104,62 @@ def test_router_config_from_env_builds_providers(tmp_path: Path, monkeypatch) ->
     assert primary.user_agent == "Custom-Router-Test/2.0"
     assert primary.candidate_models(for_coding=False)[0] == "chatgpt/gpt-5.3-instant"
     assert primary.candidate_models(for_coding=True)[0] == "chatgpt/gpt-5.3-codex"
+
+
+def test_utf8_utf16_bom_and_zero_width_sanitization(tmp_path: Path, monkeypatch) -> None:
+    import pytest
+
+    from llm_provider_router.config import sanitize_header_value
+
+    synthetic_key = "-".join(["sk", "utf", "BomTestKey123456789"])
+
+    # 1. UTF-8 BOM + zero-width space + smart quotes in .env
+    env_utf8_bom = tmp_path / "utf8_bom.env"
+    env_utf8_bom.write_bytes(
+        b"\xef\xbb\xbf"
+        + (
+            "LITELLM_PROXY_URL=https://proxy.example.com/v1\n"
+            f"LITELLM_API_KEY=\u200b\u201c{synthetic_key}\u201d\n"
+        ).encode()
+    )
+    monkeypatch.setenv("ROUTER_STATE_DB", str(tmp_path / "state_bom.db"))
+    cfg = RouterConfig.from_env(env_file=env_utf8_bom, override_env=True)
+    assert cfg.providers[0].api_key == synthetic_key
+
+    # 2. Windows PowerShell Out-File UTF-16 LE BOM .env
+    env_utf16 = tmp_path / "utf16.env"
+    env_utf16.write_bytes(
+        (
+            "LITELLM_PROXY_URL=https://proxy.example.com/v1\r\n"
+            f"LITELLM_API_KEY={synthetic_key}\r\n"
+        ).encode("utf-16")
+    )
+    loaded_utf16 = load_dotenv_file(env_utf16, override=True)
+    assert loaded_utf16["LITELLM_API_KEY"] == synthetic_key
+
+    # 3. Non-ASCII pasted text inside header key raises clean ValueError instead of latin-1 crash
+    with pytest.raises(ValueError):
+        sanitize_header_value("mã-khóa-tiếng-việt", field_name="API key", require_ascii=True)
+
+
+def test_global_env_fallback_loads_when_cwd_has_no_dotenv(tmp_path: Path, monkeypatch) -> None:
+    fake_home = tmp_path / "home"
+    global_dir = fake_home / ".llm_provider_router"
+    global_dir.mkdir(parents=True)
+    synthetic_key = "-".join(["sk", "glb", "GlobalFallbackKey1234"])
+    (global_dir / ".env").write_text(
+        f"LITELLM_PROXY_URL=https://global.example.com/v1\nLITELLM_API_KEY={synthetic_key}\n",
+        encoding="utf-8",
+    )
+    empty_cwd = tmp_path / "empty_cwd"
+    empty_cwd.mkdir()
+    monkeypatch.chdir(empty_cwd)
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    for k in ("LITELLM_PROXY_URL", "LITELLM_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("ROUTER_STATE_DB", str(tmp_path / "state_global.db"))
+
+    cfg = RouterConfig.from_env()
+    assert cfg.providers[0].base_url == "https://global.example.com/v1"
+    assert cfg.providers[0].api_key == synthetic_key

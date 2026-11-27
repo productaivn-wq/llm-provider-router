@@ -97,7 +97,16 @@ def test_gateway_auth_models_and_chat_roundtrip() -> None:
     base = f"http://{gw_host}:{gw_port}"
 
     try:
-        # 1. /healthz accessible without Bearer token
+        # 1. /healthz and GET / Web Chat UI accessible cleanly without leaking upstream keys
+        with urllib.request.urlopen(f"{base}/", timeout=5) as ui_resp:
+            assert ui_resp.status == 200
+            assert "text/html" in (ui_resp.headers.get("Content-Type") or "")
+            ui_html = ui_resp.read().decode("utf-8")
+        assert "Trợ Lý AI Nội Bộ" in ui_html
+        assert f"{base}/v1" in ui_html
+        assert up_key not in ui_html
+        assert gw_token not in ui_html
+
         with urllib.request.urlopen(f"{base}/healthz", timeout=5) as resp:
             hz = json.loads(resp.read().decode("utf-8"))
         assert hz["ok"] is True
@@ -214,3 +223,54 @@ def test_gateway_concurrent_requests_with_wal_store(tmp_path: Path) -> None:
         store.close()
         upstream.shutdown()
         upstream.server_close()
+
+
+def test_connect_clients_writes_launchers_and_wires_codex_continue(tmp_path: Path) -> None:
+    from llm_provider_router.connect import connect_clients, wire_shell_env
+
+    fake_home = tmp_path / "home"
+    (fake_home / ".codex").mkdir(parents=True)
+    (fake_home / ".codex" / "config.toml").write_text('model = "gpt-5.3"\n', encoding="utf-8")
+    (fake_home / ".continue").mkdir(parents=True)
+    (fake_home / ".continue" / "config.json").write_text(
+        json.dumps({"models": [{"title": "Existing", "provider": "openai", "model": "gpt-4o"}]}),
+        encoding="utf-8",
+    )
+    install_dir = tmp_path / "router_install"
+    env_file = install_dir / ".env"
+    install_dir.mkdir()
+    env_file.write_text("LITELLM_PROXY_URL=https://proxy.example.com/v1\n", encoding="utf-8")
+
+    res = connect_clients(
+        env_file=env_file,
+        install_dir=install_dir,
+        home_dir=fake_home,
+        start_gateway=False,
+        clients="codex,continue",
+        dry_run=False,
+    )
+    assert res["ok"] is True
+    assert res["chat_ui_url"] == "http://127.0.0.1:18766/"
+    assert (install_dir / "Mo_Chat_AI.bat").is_file()
+    assert (install_dir / "Mo_Cong_AI.bat").is_file()
+    assert (install_dir / "Mo_Chat_AI.command").is_file()
+    assert (install_dir / "Mo_Cong_AI.command").is_file()
+    assert "chcp 65001" in (install_dir / "Mo_Chat_AI.bat").read_text(encoding="utf-8")
+
+    codex_cfg = (fake_home / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert "[model_providers.llm_router]" in codex_cfg
+    assert (fake_home / ".codex" / "config.toml.bak").is_file()
+
+    cont_cfg = json.loads((fake_home / ".continue" / "config.json").read_text(encoding="utf-8"))
+    titles = [m["title"] for m in cont_cfg["models"]]
+    assert "Existing" in titles and "LLM Provider Router (Auto)" in titles
+    assert (fake_home / ".continue" / "config.json.bak").is_file()
+
+    sh_res = wire_shell_env(
+        fake_home,
+        "http://127.0.0.1:18766/v1",
+        install_dir=install_dir,
+        posix_only_for_test=True,
+    )
+    assert sh_res["status"] == "configured"
+    assert "LLM_ROUTER_GATEWAY_URL" in (fake_home / ".bashrc").read_text(encoding="utf-8")

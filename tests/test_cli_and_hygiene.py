@@ -73,7 +73,7 @@ def test_cli_status_and_reset_cooldowns(tmp_path: Path, capsys, monkeypatch) -> 
 
 
 def test_source_tree_has_clean_ast_and_no_print_leaks() -> None:
-    assert __version__ == "1.0.0"
+    assert __version__ == "1.1.0"
     src_dir = Path(__file__).resolve().parents[1] / "src" / "llm_provider_router"
     for py_file in sorted(src_dir.glob("*.py")):
         tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
@@ -112,10 +112,46 @@ def test_documented_cli_commands_parse_cleanly() -> None:
         ["serve"],
         ["status", "--json"],
         ["reset-cooldowns"],
+        ["connect", "--start-gateway", "--json"],
+        ["connect", "--no-start-gateway", "--clients", "codex,continue", "--dry-run", "--json"],
     ]
     for argv in samples:
         parsed = parser.parse_args(argv)
         assert parsed.command == argv[0]
+
+
+def test_cli_setup_handles_utf16_and_utf8_bom_stdin_bytes(tmp_path: Path, monkeypatch) -> None:
+    class _FakeStdin:
+        def __init__(self, raw: bytes) -> None:
+            self.buffer = io.BytesIO(raw)
+
+        def isatty(self) -> bool:
+            return False
+
+    fake_secret = "-".join(["sk", "bom", "Utf16StdinKey987654321"])
+    env_path = tmp_path / ".env"
+    global_env = tmp_path / "home" / ".llm_provider_router" / ".env"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
+    monkeypatch.setenv("ROUTER_STATE_DB", str(tmp_path / "state_bom.db"))
+    monkeypatch.setattr("sys.stdin", _FakeStdin(fake_secret.encode("utf-16")))
+
+    rc = cli.main(
+        [
+            "setup",
+            "--url",
+            "https://proxy.example.com/v1",
+            "--api-key-stdin",
+            "--env-file",
+            str(env_path),
+            "--json",
+        ]
+    )
+    assert rc == 0
+    assert f"LITELLM_API_KEY={fake_secret}" in env_path.read_text(encoding="utf-8")
+    assert global_env.is_file() and f"LITELLM_API_KEY={fake_secret}" in global_env.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_audience_docs_installers_and_public_hygiene() -> None:
@@ -124,28 +160,45 @@ def test_audience_docs_installers_and_public_hygiene() -> None:
     root = Path(__file__).resolve().parents[1]
     nontech_doc = root / "docs" / "AI_SETUP_PROMPT_NONTECH.md"
     tech_doc = root / "docs" / "AI_SETUP_PROMPT_TECH.md"
+    visual_doc = root / "docs" / "VISUAL_GUIDE_VI.md"
     index_doc = root / "docs" / "AI_SETUP_PROMPT.md"
     ps_installer = root / "scripts" / "install.ps1"
     sh_installer = root / "scripts" / "install.sh"
 
-    for p in (nontech_doc, tech_doc, index_doc, ps_installer, sh_installer):
+    for p in (nontech_doc, tech_doc, visual_doc, index_doc, ps_installer, sh_installer):
         assert p.is_file(), f"Missing deliverable: {p}"
+
+    # README.md and pyproject.toml must stay pure ASCII so Windows pip install never fails under cp1252/cp1258
+    for pkg_file in (root / "README.md", root / "pyproject.toml"):
+        raw_txt = pkg_file.read_text(encoding="utf-8")
+        assert all(ord(ch) < 128 for ch in raw_txt), f"Non-ASCII char found in {pkg_file.name}"
 
     nontech_text = nontech_doc.read_text(encoding="utf-8")
     for marker in (
         "archive/refs/heads/main.zip",
         "Activate.ps1",
         "--api-key-stdin",
-        "Mo_Cong_AI.bat",
-        "Mo_Cong_AI.command",
+        "connect --start-gateway",
+        "Mo_Chat_AI",
+        "127.0.0.1:18766",
         "Phase 7",
         "PYTHONUTF8=1",
     ):
         assert marker in nontech_text, f"Missing non-tech safeguard marker {marker!r}"
 
     tech_text = tech_doc.read_text(encoding="utf-8")
-    for marker in ("--api-key-stdin", "LLM-Provider-Router/1.0", "127.0.0.1:18766/v1", "router/auto"):
+    for marker in (
+        "--api-key-stdin",
+        "connect --start-gateway",
+        "LLM-Provider-Router/1.0",
+        "127.0.0.1:18766/v1",
+        "router/auto",
+    ):
         assert marker in tech_text, f"Missing tech marker {marker!r}"
+
+    visual_text = visual_doc.read_text(encoding="utf-8")
+    for marker in ("mermaid", "Mo_Chat_AI", "127.0.0.1:18766", "local-router"):
+        assert marker in visual_text, f"Missing visual guide marker {marker!r}"
 
     # Verify public-repo zero-leak hygiene across README, docs, scripts, src, tests
     forbidden_internal = [

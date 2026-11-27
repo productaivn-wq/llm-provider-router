@@ -11,22 +11,38 @@ from pathlib import Path
 from typing import Any
 
 from .config import (
+    default_global_env_path,
     load_dotenv_file,
     normalize_openai_base_url,
     redact_secrets,
     register_runtime_secret,
+    sanitize_header_value,
     validate_outbound_url,
 )
+from .connect import connect_clients
 from .gateway import LocalOpenAIGateway
 from .providers import AllProvidersFailedError
 from .router import LLMProviderRouter
 
 
 def _configure_utf8_stdio() -> None:
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+def _read_stdin_text_safe() -> str:
+    """Read stdin safely across UTF-8, UTF-8 BOM, Windows UTF-16 LE/BE BOM, and StringIO."""
+    buf = getattr(sys.stdin, "buffer", None)
+    if buf is not None:
+        raw = buf.read()
+        if isinstance(raw, bytes):
+            if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+                return raw.decode("utf-16", errors="replace")
+            if raw.startswith(b"\xef\xbb\xbf"):
+                return raw.decode("utf-8-sig", errors="replace")
+            return raw.decode("utf-8", errors="replace")
+    return sys.stdin.read()
 
 
 def _write_env_secure(path: Path, values: dict[str, str]) -> None:
@@ -72,21 +88,45 @@ def _write_env_secure(path: Path, values: dict[str, str]) -> None:
 
 
 def _cmd_setup(args: argparse.Namespace) -> int:
-    proxy_url = normalize_openai_base_url(args.url or "")
+    try:
+        proxy_url = normalize_openai_base_url(
+            sanitize_header_value(args.url or "", field_name="proxy URL", require_ascii=True)
+        )
+    except ValueError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 2
     if not proxy_url and sys.stdin.isatty():
         proxy_url = normalize_openai_base_url(
-            input("LiteLLM Proxy URL (e.g. https://proxy.example.com/v1): ")
+            sanitize_header_value(
+                input("LiteLLM Proxy URL (e.g. https://proxy.example.com/v1): "),
+                field_name="proxy URL",
+                require_ascii=True,
+            )
         )
     ok_url, reason = validate_outbound_url(proxy_url, allow_loopback=True)
     if not ok_url:
         print(json.dumps({"ok": False, "error": f"Invalid proxy URL: {reason}"}), file=sys.stderr)
         return 2
 
-    api_key = (args.api_key or "").strip()
-    if not api_key and args.api_key_stdin:
-        api_key = sys.stdin.read().strip()
-    if not api_key and sys.stdin.isatty():
-        api_key = getpass.getpass("Personal API Key (input hidden): ").strip()
+    raw_api_key = args.api_key or ""
+    if not raw_api_key and args.api_key_stdin:
+        raw_api_key = _read_stdin_text_safe()
+    if not raw_api_key and sys.stdin.isatty():
+        raw_api_key = getpass.getpass("Personal API Key (input hidden): ")
+
+    try:
+        api_key = (
+            sanitize_header_value(raw_api_key, field_name="API key", require_ascii=True)
+            if raw_api_key.strip()
+            else ""
+        )
+        user_agent = (
+            sanitize_header_value(args.user_agent, field_name="User-Agent", require_ascii=True)
+            or "LLM-Provider-Router/1.0"
+        )
+    except ValueError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 2
 
     if api_key:
         register_runtime_secret(api_key)
@@ -96,16 +136,22 @@ def _cmd_setup(args: argparse.Namespace) -> int:
         "LITELLM_PROXY_URL": proxy_url,
         "LITELLM_MODEL": args.model,
         "LITELLM_CODING_MODEL": args.coding_model,
-        "LITELLM_USER_AGENT": args.user_agent,
+        "LITELLM_USER_AGENT": user_agent,
     }
     if api_key:
         updates["LITELLM_API_KEY"] = api_key
 
     _write_env_secure(env_path, updates)
+    global_env_path = default_global_env_path()
+    synced_global = False
+    if not getattr(args, "no_global_env", False) and env_path.resolve() != global_env_path.resolve():
+        _write_env_secure(global_env_path, updates)
+        synced_global = True
 
     summary: dict[str, Any] = {
         "ok": True,
         "env_file": str(env_path),
+        "global_env_file": str(global_env_path) if synced_global else str(env_path),
         "proxy_url": proxy_url,
         "default_model": args.model,
         "coding_model": args.coding_model,
@@ -236,6 +282,25 @@ def _cmd_reset_cooldowns(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_connect(args: argparse.Namespace) -> int:
+    res = connect_clients(
+        env_file=Path(args.env_file).expanduser() if args.env_file else None,
+        install_dir=Path(args.install_dir).expanduser() if args.install_dir else None,
+        start_gateway=bool(args.start_gateway),
+        clients=args.clients,
+        open_ui=bool(args.open_ui),
+        dry_run=bool(args.dry_run),
+    )
+    if args.json:
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+    else:
+        print(
+            f"Gateway ready at {res['gateway_url']} | Chat UI: {res['chat_ui_url']} "
+            f"(running={res['gateway'].get('running')})"
+        )
+    return 0 if res.get("ok") else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct CLI argument parser."""
     parser = argparse.ArgumentParser(
@@ -257,6 +322,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--user-agent", default="LLM-Provider-Router/1.0", help="HTTP User-Agent header"
     )
     p_setup.add_argument("--env-file", default=".env", help="Target .env file path")
+    p_setup.add_argument(
+        "--no-global-env",
+        action="store_true",
+        help="Do not sync settings to ~/.llm_provider_router/.env",
+    )
     p_setup.add_argument("--probe", action="store_true", help="Run live probe after writing .env")
     p_setup.add_argument("--json", action="store_true", help="Emit JSON output")
     p_setup.set_defaults(func=_cmd_setup)
@@ -302,6 +372,35 @@ def build_parser() -> argparse.ArgumentParser:
     p_reset.add_argument("--provider", default=None, help="Optional single provider to clear")
     p_reset.add_argument("--env-file", default=None, help="Path to .env file")
     p_reset.set_defaults(func=_cmd_reset_cooldowns)
+
+    p_connect = sub.add_parser(
+        "connect",
+        help="Start background gateway, generate 1-click Web Chat UI launchers, and auto-wire local AI tools",
+    )
+    p_connect.add_argument(
+        "--start-gateway",
+        dest="start_gateway",
+        action="store_true",
+        default=True,
+        help="Start detached loopback gateway in background if not running (default)",
+    )
+    p_connect.add_argument(
+        "--no-start-gateway",
+        dest="start_gateway",
+        action="store_false",
+        help="Only write launchers and wire tool configs without spawning gateway",
+    )
+    p_connect.add_argument(
+        "--clients",
+        default="auto",
+        help="Comma-separated clients to auto-wire: auto, shell, codex, continue",
+    )
+    p_connect.add_argument("--install-dir", default=None, help="Folder for 1-click launchers")
+    p_connect.add_argument("--env-file", default=None, help="Path to .env file")
+    p_connect.add_argument("--open-ui", action="store_true", help="Open Web Chat UI in browser")
+    p_connect.add_argument("--dry-run", action="store_true", help="Preview without modifying files")
+    p_connect.add_argument("--json", action="store_true", help="Emit JSON output")
+    p_connect.set_defaults(func=_cmd_connect)
 
     return parser
 
