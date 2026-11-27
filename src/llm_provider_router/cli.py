@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from .config import (
+    DEFAULT_CHAT_MODEL,
+    DEFAULT_CODING_MODEL,
     _read_text_auto_encoding,
     default_global_env_path,
     load_dotenv_file,
@@ -351,9 +353,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--api-key", help="API key (prefer --api-key-stdin or prompt to keep shell history clean)"
     )
     p_setup.add_argument("--api-key-stdin", action="store_true", help="Read API key from stdin")
-    p_setup.add_argument("--model", default="chatgpt/gpt-5.3-instant", help="Default chat model")
+    p_setup.add_argument("--model", default=DEFAULT_CHAT_MODEL, help="Default chat model")
     p_setup.add_argument(
-        "--coding-model", default="chatgpt/gpt-5.3-codex", help="Default coding model"
+        "--coding-model", default=DEFAULT_CODING_MODEL, help="Default coding model"
     )
     p_setup.add_argument(
         "--user-agent", default="LLM-Provider-Router/1.0", help="HTTP User-Agent header"

@@ -17,7 +17,7 @@ Set up `llm-provider-router` and auto-wire Orchestrator -> OpenAI Sub-Agent offl
    - `<VENV_PY> -m pip install --upgrade pip`
    - `<VENV_PY> -m pip install -e .`
 4. Configure local + global `~/.llm_provider_router/.env` cleanly via Python `subprocess.run(..., input=API_KEY, encoding="utf-8", text=True)`:
-   - `<VENV_PY> -m llm_provider_router setup --url <PROXY_URL> --api-key-stdin --model chatgpt/gpt-5.3-instant --coding-model chatgpt/gpt-5.3-codex --user-agent LLM-Provider-Router/1.0 --probe --json`
+   - `<VENV_PY> -m llm_provider_router setup --url <PROXY_URL> --api-key-stdin --model chatgpt/gpt-6.2-sol --coding-model chatgpt/gpt-6.2-astra --user-agent LLM-Provider-Router/1.0 --probe --json`
    - API Key (stdin only, never echo): `<YOUR_API_KEY>`
 5. Auto-wire Orchestrator rules & skills so this assistant stays Orchestrator while delegating sub-agent tasks to OpenAI:
    - `<VENV_PY> -m llm_provider_router connect --install-dir "<TARGET_DIR>" --python-exe "<VENV_PY>" --json` (also pass `--workspace "<CURRENT_WORKSPACE_DIR>"` if inside a project repo)
@@ -32,6 +32,8 @@ Set up `llm-provider-router` and auto-wire Orchestrator -> OpenAI Sub-Agent offl
 
 ## Quick CLI Sub-Agent Reference (Tech)
 
+- **10 Live-Verified Working Models (HTTP 200 OK)**:
+  - `chatgpt/gpt-6.2-sol` (default chat), `chatgpt/gpt-6.2-astra` (default coding), `chatgpt/gpt-6-astra`, `chatgpt/gpt-6-sol`, `chatgpt/gpt-6-luna`, `chatgpt/gpt-6.1-sol`, `chatgpt/gpt-6.1-terra`, `chatgpt/gpt-5.6-sol`, `chatgpt/gpt-5.6-luna`, `chatgpt/gpt-5.6-terra`
 - **Single OpenAI Sub-Agent Task**:
   - `llm-router delegate --role coding "Implement unit tests for parser.py" --context-file src/parser.py --json`
   - Roles: `general`, `writing`, `analysis`, `coding`, `review`

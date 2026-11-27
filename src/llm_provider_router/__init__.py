@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from .config import (
+    DEFAULT_CHAT_MODEL,
+    DEFAULT_CODING_MODEL,
+    VERIFIED_MODELS,
     ProviderConfig,
     RouterConfig,
     default_global_env_path,
@@ -37,6 +40,9 @@ __version__ = "1.2.0"
 
 __all__ = [
     "__version__",
+    "DEFAULT_CHAT_MODEL",
+    "DEFAULT_CODING_MODEL",
+    "VERIFIED_MODELS",
     "AllProvidersFailedError",
     "BaseProviderTier",
     "CerebrasTier",

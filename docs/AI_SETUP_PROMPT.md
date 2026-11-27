@@ -21,7 +21,7 @@ Set up `llm-provider-router` and auto-wire Orchestrator -> OpenAI Sub-Agent offl
 
 1. Force UTF-8 (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`), clone https://github.com/productaivn-wq/llm-provider-router.git into `~/llm-provider-router` (or `%USERPROFILE%\llm-provider-router`; fallback to archive/refs/heads/main.zip if git is unavailable), and create `.venv` without running `Activate.ps1`.
 2. Run `<VENV_PY> -m pip install -e .` and configure credentials cleanly via stdin using Python `subprocess` (never echo or commit API keys):
-   `<VENV_PY> -m llm_provider_router setup --url <PROXY_URL> --api-key-stdin --model chatgpt/gpt-5.3-instant --coding-model chatgpt/gpt-5.3-codex --user-agent LLM-Provider-Router/1.0 --probe --json`
+   `<VENV_PY> -m llm_provider_router setup --url <PROXY_URL> --api-key-stdin --model chatgpt/gpt-6.2-sol --coding-model chatgpt/gpt-6.2-astra --user-agent LLM-Provider-Router/1.0 --probe --json`
    API Key via stdin: `<YOUR_API_KEY>`
 3. Auto-wire rules & skills for Antigravity, Claude Code, Codex, and Cursor:
    `<VENV_PY> -m llm_provider_router connect --install-dir "<TARGET_DIR>" --python-exe "<VENV_PY>" --json`

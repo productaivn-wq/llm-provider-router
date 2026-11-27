@@ -3,7 +3,7 @@
 A clean, zero-dependency Python 3.10+ multi-provider LLM router and **Orchestrator + OpenAI Sub-Agent** delegation engine for Antigravity (AGY), Claude Code, Codex, and Cursor.
 
 - **Zero external runtime dependencies**: pure Python standard library (`urllib.request`, `http.server`, `sqlite3`, `json`).
-- **Orchestrator + OpenAI Sub-Agent architecture**: keep Antigravity, Claude Code, Codex, or Cursor as your main reasoning **Orchestrator** while automatically offloading sub-agent tasks (`llm-router delegate` and parallel `llm-router batch`) to company OpenAI models (`chatgpt/gpt-5.3-instant`, `chatgpt/gpt-5.3-codex`).
+- **Orchestrator + OpenAI Sub-Agent architecture**: keep Antigravity, Claude Code, Codex, or Cursor as your main reasoning **Orchestrator** while automatically offloading sub-agent tasks (`llm-router delegate` and parallel `llm-router batch`) to company OpenAI models (`chatgpt/gpt-6.2-sol`, `chatgpt/gpt-6.2-astra`) with automatic failover across 10 verified models.
 - **Automatic rule & skill wiring (`llm-router connect`)**: installs always-on rules/skills across Antigravity (`~/.gemini/config/rules/llm-router-subagent.md` + `SKILL.md`), Claude Code (`~/.claude/CLAUDE.md` + `agents/openai-worker.md`), Codex (`~/.codex/AGENTS.md` + `config.toml`), and Cursor (`.cursor/rules/llm-router-subagent.mdc`).
 - **UTF-8 / BOM safe on Windows**: automatically handles UTF-8 BOM, UTF-16 LE/BE BOM, smart quotes, and zero-width characters in `.env`, stdin, context files, and HTTP headers.
 - **SQLite WAL cooldowns & spend breaker**: exponential backoff cooldowns per `(provider, model)`, `Retry-After` support, attempt ring log, and optional daily spend limit.
@@ -27,12 +27,27 @@ python -m venv .venv
 printf "%s" "<YOUR_API_KEY>" | llm-router setup \
   --url https://your-litellm-proxy.example.com/v1 \
   --api-key-stdin \
-  --model chatgpt/gpt-5.3-instant \
-  --coding-model chatgpt/gpt-5.3-codex \
+  --model chatgpt/gpt-6.2-sol \
+  --coding-model chatgpt/gpt-6.2-astra \
   --probe
 ```
 
 This writes a `0600` `.env` file locally plus `~/.llm_provider_router/.env` (so `llm-router` works from any working directory) and verifies live `/models` connectivity without printing your API key.
+
+## Verified Working Models (10/25 HTTP 200 OK)
+
+Default chat (`general` / `writing` / `analysis`) uses `chatgpt/gpt-6.2-sol`; default coding (`coding` / `review`) uses `chatgpt/gpt-6.2-astra`, with automatic failover across all 10 verified models:
+
+- `chatgpt/gpt-6.2-sol` (default chat)
+- `chatgpt/gpt-6.2-astra` (default coding)
+- `chatgpt/gpt-6-sol`
+- `chatgpt/gpt-6-astra`
+- `chatgpt/gpt-6-luna`
+- `chatgpt/gpt-6.1-sol`
+- `chatgpt/gpt-6.1-terra`
+- `chatgpt/gpt-5.6-sol`
+- `chatgpt/gpt-5.6-luna`
+- `chatgpt/gpt-5.6-terra`
 
 ### 3. Auto-Wire Orchestrator Rules & Test OpenAI Sub-Agent Delegation
 

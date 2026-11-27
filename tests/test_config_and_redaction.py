@@ -163,3 +163,31 @@ def test_global_env_fallback_loads_when_cwd_has_no_dotenv(tmp_path: Path, monkey
     cfg = RouterConfig.from_env()
     assert cfg.providers[0].base_url == "https://global.example.com/v1"
     assert cfg.providers[0].api_key == synthetic_key
+
+
+def test_verified_models_defaults_and_fallback_candidates(tmp_path: Path, monkeypatch) -> None:
+    from llm_provider_router import DEFAULT_CHAT_MODEL, DEFAULT_CODING_MODEL, VERIFIED_MODELS
+
+    env_file = tmp_path / ".env"
+    synthetic_key = "-".join(["sk", "ver", "VerifiedDefaultKey123"])
+    env_file.write_text(
+        f"LITELLM_PROXY_URL=https://proxy.example.com/v1\nLITELLM_API_KEY={synthetic_key}\n",
+        encoding="utf-8",
+    )
+    for k in ("LITELLM_MODEL", "LITELLM_CODING_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("ROUTER_STATE_DB", str(tmp_path / "state_verified.db"))
+
+    cfg = RouterConfig.from_env(env_file=env_file, override_env=True)
+    primary = cfg.providers[0]
+    assert DEFAULT_CHAT_MODEL == "chatgpt/gpt-6.2-sol"
+    assert DEFAULT_CODING_MODEL == "chatgpt/gpt-6.2-astra"
+    assert primary.default_model == DEFAULT_CHAT_MODEL
+    assert primary.coding_model == DEFAULT_CODING_MODEL
+    chat_candidates = primary.candidate_models(for_coding=False)
+    code_candidates = primary.candidate_models(for_coding=True)
+    assert chat_candidates[0] == DEFAULT_CHAT_MODEL
+    assert code_candidates[0] == DEFAULT_CODING_MODEL
+    for mid in VERIFIED_MODELS:
+        assert mid in chat_candidates
+        assert mid in code_candidates

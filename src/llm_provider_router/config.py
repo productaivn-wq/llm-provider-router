@@ -12,6 +12,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REDACTED = "***REDACTED***"
+DEFAULT_CHAT_MODEL = "chatgpt/gpt-6.2-sol"
+DEFAULT_CODING_MODEL = "chatgpt/gpt-6.2-astra"
+VERIFIED_MODELS: tuple[str, ...] = (
+    "chatgpt/gpt-6.2-sol",
+    "chatgpt/gpt-6-astra",
+    "chatgpt/gpt-6.2-astra",
+    "chatgpt/gpt-6-sol",
+    "chatgpt/gpt-5.6-sol",
+    "chatgpt/gpt-5.6-luna",
+    "chatgpt/gpt-5.6-terra",
+    "chatgpt/gpt-6-luna",
+    "chatgpt/gpt-6.1-sol",
+    "chatgpt/gpt-6.1-terra",
+)
 
 _SECRET_LOCK = threading.Lock()
 _REGISTERED_SECRETS: set[str] = set()
@@ -383,11 +397,11 @@ class RouterConfig:
         )
         litellm_timeout = max(1.0, _parse_float(os.environ.get("LITELLM_TIMEOUT"), 45.0))
         litellm_model = (
-            os.environ.get("LITELLM_MODEL", "chatgpt/gpt-5.3-instant").strip()
-            or "chatgpt/gpt-5.3-instant"
+            os.environ.get("LITELLM_MODEL", DEFAULT_CHAT_MODEL).strip() or DEFAULT_CHAT_MODEL
         )
         litellm_coding = (
-            os.environ.get("LITELLM_CODING_MODEL", "chatgpt/gpt-5.3-codex").strip() or litellm_model
+            os.environ.get("LITELLM_CODING_MODEL", DEFAULT_CODING_MODEL).strip()
+            or DEFAULT_CODING_MODEL
         )
 
         providers = [
@@ -398,7 +412,7 @@ class RouterConfig:
                 api_key=litellm_key,
                 default_model=litellm_model,
                 coding_model=litellm_coding,
-                fallback_models=("chatgpt/gpt-5.2-codex",),
+                fallback_models=VERIFIED_MODELS,
                 user_agent=ua,
                 timeout_sec=litellm_timeout,
             ),

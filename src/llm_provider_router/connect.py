@@ -14,7 +14,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from .config import RouterConfig, default_global_env_path
+from .config import (
+    DEFAULT_CHAT_MODEL,
+    DEFAULT_CODING_MODEL,
+    VERIFIED_MODELS,
+    RouterConfig,
+    default_global_env_path,
+)
 
 _CODEX_TOML_BLOCK_RE = re.compile(
     r"\n?# BEGIN LLM-PROVIDER-ROUTER[\s\S]*?# END LLM-PROVIDER-ROUTER\n?",
@@ -66,8 +72,9 @@ def render_orchestrator_rule_body(python_exe: str, install_dir: Path) -> str:
         "- **Parallel multi-task sub-agent batch**:\n"
         f'  `{py_cmd} batch --tasks-file <tasks.json> --json`\n'
         "- **Installed router directory**: `" + str(install_dir) + "`\n"
-        "- **Routing behavior**: `coding`/`review` route to `chatgpt/gpt-5.3-codex`; "
-        "`general`/`writing`/`analysis` route to `chatgpt/gpt-5.3-instant`.\n"
+        f"- **Routing behavior**: `coding`/`review` route to `{DEFAULT_CODING_MODEL}`; "
+        f"`general`/`writing`/`analysis` route to `{DEFAULT_CHAT_MODEL}`.\n"
+        f"- **Verified working models (10)**: {', '.join(f'`{m}`' for m in VERIFIED_MODELS)}.\n"
         "- **Guardrails**: Never echo or commit `.env` API keys. Only perform the work yourself as fallback if `delegate` returns `ok: false`.\n"
     )
 

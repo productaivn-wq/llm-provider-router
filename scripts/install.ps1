@@ -11,8 +11,8 @@ param(
     [string]$Url = $env:ROUTER_PROXY_URL,
     [switch]$ApiKeyStdin,
     [string]$InstallDir = (Join-Path $env:USERPROFILE "llm-provider-router"),
-    [string]$Model = "chatgpt/gpt-5.3-instant",
-    [string]$CodingModel = "chatgpt/gpt-5.3-codex",
+    [string]$Model = "chatgpt/gpt-6.2-sol",
+    [string]$CodingModel = "chatgpt/gpt-6.2-astra",
     [switch]$SkipChatTest
 )
 

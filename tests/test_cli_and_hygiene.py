@@ -98,9 +98,9 @@ def test_documented_cli_commands_parse_cleanly() -> None:
             "https://your-litellm-proxy.example.com/v1",
             "--api-key-stdin",
             "--model",
-            "chatgpt/gpt-5.3-instant",
+            "chatgpt/gpt-6.2-sol",
             "--coding-model",
-            "chatgpt/gpt-5.3-codex",
+            "chatgpt/gpt-6.2-astra",
             "--user-agent",
             "LLM-Provider-Router/1.0",
             "--probe",
@@ -208,12 +208,21 @@ def test_audience_docs_installers_and_public_hygiene() -> None:
         assert "Mo_Chat_AI" not in txt_check, f"Obsolete Mo_Chat_AI ref in {no_web_ui_file.name}"
         assert "Web Chat UI" not in txt_check, f"Obsolete Web Chat UI ref in {no_web_ui_file.name}"
 
+    from llm_provider_router import VERIFIED_MODELS
+
+    assert len(VERIFIED_MODELS) == 10
+    for doc_with_models in (root / "README.md", nontech_doc, tech_doc, visual_doc):
+        doc_txt = doc_with_models.read_text(encoding="utf-8")
+        for mid in VERIFIED_MODELS:
+            assert mid in doc_txt, f"Verified model {mid!r} missing from {doc_with_models.name}"
+
     # Verify public-repo zero-leak hygiene across README, docs, scripts, src, tests
     forbidden_internal = [
         "".join(["mh", "solution", ".vn"]),
         "".join(["icp", "v.io", ".vn"]),
         "".join(["product", "ai.vn"]),
         "".join(["hrm.", "mh"]),
+        "".join(["phuong", "vnn"]),
         "".join(["công ", "danh"]),
         "".join(["văn ", "thông"]),
     ]

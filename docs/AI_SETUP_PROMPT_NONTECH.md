@@ -89,8 +89,8 @@ res = subprocess.run(
         VENV_PY, "-m", "llm_provider_router", "setup",
         "--url", proxy_url,
         "--api-key-stdin",
-        "--model", "chatgpt/gpt-5.3-instant",
-        "--coding-model", "chatgpt/gpt-5.3-codex",
+        "--model", "chatgpt/gpt-6.2-sol",
+        "--coding-model", "chatgpt/gpt-6.2-astra",
         "--user-agent", "LLM-Provider-Router/1.0",
         "--env-file", ENV_FILE_PATH,
         "--probe",
@@ -121,7 +121,7 @@ Inspect `auto_connected` in the JSON output to see the exact rules/skills writte
    - HTTP 403 -> verify `--user-agent LLM-Provider-Router/1.0` and re-probe.
    - HTTP 401 or non-ASCII error -> strip invisible BOM/spaces/newlines from key and rerun Phase 5.
 3. Reply to the user in **warm, plain, visual Vietnamese** answering ALL 3 questions (ZERO dev jargon, ZERO raw API key):
-   - **Công cụ này để làm gì:** Giữ nguyên trợ lý AI quen dùng (Antigravity / Claude / Codex / Cursor) làm "nhạc trưởng" hiểu ý bạn, còn các việc nặng (soạn thảo, tóm tắt, phân tích, xử lý dữ liệu) sẽ tự giao sang `<models_count>` mô hình OpenAI của công ty.
+   - **Công cụ này để làm gì:** Giữ nguyên trợ lý AI quen dùng (Antigravity / Claude / Codex / Cursor) làm "nhạc trưởng" hiểu ý bạn, còn các việc nặng (soạn thảo, tóm tắt, phân tích, xử lý dữ liệu) sẽ tự giao sang nhóm 10 mô hình OpenAI đã kiểm chứng hoạt động (`chatgpt/gpt-6.2-sol`, `chatgpt/gpt-6.2-astra`, `chatgpt/gpt-6-astra`, `chatgpt/gpt-6-sol`, `chatgpt/gpt-6-luna`, `chatgpt/gpt-6.1-sol`, `chatgpt/gpt-6.1-terra`, `chatgpt/gpt-5.6-sol`, `chatgpt/gpt-5.6-luna`, `chatgpt/gpt-5.6-terra`).
    - **Máy đã tự kích hoạt gì:** Liệt kê gọn các trợ lý AI vừa được tự động gắn quy tắc từ `connect --json` (và tên model OpenAI vừa trả lời thử thành công).
    - **Bạn cần làm gì tiếp theo:**
      1. Mở **một cuộc trò chuyện MỚI** trong chính trợ lý AI đang dùng (để trợ lý nạp quy tắc mới, không cần mở app hay trang web nào khác).

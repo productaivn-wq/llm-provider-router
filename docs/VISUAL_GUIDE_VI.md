@@ -10,7 +10,11 @@
 |---|---|
 | Cài xong nhưng Trợ lý AI **vẫn dùng cách cũ** (mọi việc đều tự làm bằng Claude/Gemini/tài khoản riêng) | Lệnh `llm-router connect` **gắn quy tắc & kỹ năng thường trực** để Trợ lý AI tự động gọi `llm-router delegate` / `batch` sang **OpenAI công ty** |
 | Phải mở thêm web lạ hoặc tự nhớ lệnh | **Không cần mở phần mềm hay web mới** — tiếp tục chat trong chính Antigravity / Claude / Codex / Cursor |
-| Khó biết máy đang dùng mô hình nào hoặc khi nào dùng | Nhạc trưởng (Claude/AGY/Codex) lo lập kế hoạch & đọc file; Sub-Agent OpenAI (`gpt-5.3-instant` / `gpt-5.3-codex`) gánh viết lách, tóm tắt, phân tích, sinh/review code và chạy song song |
+| Khó biết máy đang dùng mô hình nào hoặc khi nào dùng | Nhạc trưởng (Claude/AGY/Codex) lo lập kế hoạch & đọc file; Sub-Agent OpenAI (`chatgpt/gpt-6.2-sol` / `chatgpt/gpt-6.2-astra` và 8 mô hình dự phòng khác) gánh viết lách, tóm tắt, phân tích, sinh/review code và chạy song song |
+
+### Danh sách 10 mô hình đã kiểm chứng hoạt động (10/25 HTTP 200 OK)
+- `chatgpt/gpt-6.2-sol` (mặc định viết lách / phân tích), `chatgpt/gpt-6.2-astra` (mặc định lập trình / review)
+- `chatgpt/gpt-6-astra`, `chatgpt/gpt-6-sol`, `chatgpt/gpt-6-luna`, `chatgpt/gpt-6.1-sol`, `chatgpt/gpt-6.1-terra`, `chatgpt/gpt-5.6-sol`, `chatgpt/gpt-5.6-luna`, `chatgpt/gpt-5.6-terra`
 
 ---
 
@@ -20,7 +24,7 @@
 flowchart LR
     U["1. Bạn giao việc trong<br/>AGY / Claude / Codex / Cursor"] --> O["2. Trợ lý AI chính<br/>(Orchestrator - lập kế hoạch & điều phối)"]
     O -->|"Tự động gọi khi có việc nặng"| D["3. llm-router delegate / batch<br/>(general | writing | analysis | coding | review)"]
-    D --> P["4. Máy chủ AI công ty<br/>(OpenAI: gpt-5.3-instant / gpt-5.3-codex)"]
+    D --> P["4. Máy chủ AI công ty<br/>(OpenAI: chatgpt/gpt-6.2-sol / chatgpt/gpt-6.2-astra)"]
     P --> O
     O --> R["5. Tổng hợp kết quả hoàn chỉnh<br/>trả lại cho bạn"]
 ```
@@ -55,7 +59,7 @@ Dán câu này vào cuộc trò chuyện mới:
 Hãy giao một việc nhỏ cho OpenAI Sub-Agent qua llm-router để xác nhận kết nối đang chạy, rồi báo lại cho tôi tên model OpenAI vừa trả lời.
 ```
 
-Nếu thấy trợ lý gọi `llm-router delegate` và báo lại tên model (ví dụ `chatgpt/gpt-5.3-instant`), nghĩa là **hệ thống đã chạy tự động 100%**.
+Nếu thấy trợ lý gọi `llm-router delegate` và báo lại tên model (ví dụ `chatgpt/gpt-6.2-sol`), nghĩa là **hệ thống đã chạy tự động 100%**.
 
 ### Bước 3: Làm việc như bình thường hằng ngày
 - **Người dùng văn phòng (Non-Tech):** Nhờ soạn email, tóm tắt tài liệu, tổng hợp báo cáo, dịch thuật, phân tích phương án → Nhạc trưởng tự gọi sub-agent OpenAI xử lý và trả kết quả tiếng Việt gọn gàng.

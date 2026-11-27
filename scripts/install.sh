@@ -9,8 +9,8 @@ REPO_URL="https://github.com/productaivn-wq/llm-provider-router.git"
 ZIP_URL="https://github.com/productaivn-wq/llm-provider-router/archive/refs/heads/main.zip"
 INSTALL_DIR="${ROUTER_INSTALL_DIR:-$HOME/llm-provider-router}"
 PROXY_URL="${ROUTER_PROXY_URL:-}"
-MODEL="${ROUTER_MODEL:-chatgpt/gpt-5.3-instant}"
-CODING_MODEL="${ROUTER_CODING_MODEL:-chatgpt/gpt-5.3-codex}"
+MODEL="${ROUTER_MODEL:-chatgpt/gpt-6.2-sol}"
+CODING_MODEL="${ROUTER_CODING_MODEL:-chatgpt/gpt-6.2-astra}"
 API_KEY_STDIN=0
 SKIP_CHAT=0
 
